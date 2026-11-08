@@ -24,19 +24,46 @@ export function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+// Labels are free text, so look them up as own keys only ("constructor" is a
+// label, not Object.prototype.constructor).
+function ownValue(obj, key) {
+    return obj && typeof key === 'string' && Object.prototype.hasOwnProperty.call(obj, key)
+        ? obj[key]
+        : undefined;
+}
+
+// Icon and color of an event: the icon of its label in its category, else the
+// category's icon, both in the category color. Generic without a known category.
 export function getIcon(category, label) {
-    try {
-        const categoryData = labels[category];
-        if (categoryData) {
-            const labelIcon = categoryData.labels[label];
-            if (labelIcon) {
-                return { icon: labelIcon, color: categoryData.color };
-            }
-        }
-    } catch (e) {
-        console.warning('Error getting icon for category:', category, 'label:', label, e);
+    const categoryData = ownValue(labels, category);
+    if (categoryData) {
+        return {
+            icon: ownValue(categoryData.labels, label) || categoryData.icon,
+            color: categoryData.color,
+        };
     }
     return { icon: 'mdi:motion-sensor', color: '#757575' };
+}
+
+// Icon of one label chip: the label's icon in the event's category, else in any
+// category, else a generic tag.
+export function getLabelIcon(label, category) {
+    const inCategory = ownValue(ownValue(labels, category)?.labels, label);
+    if (inCategory) return inCategory;
+    for (const categoryData of Object.values(labels)) {
+        const icon = ownValue(categoryData.labels, label);
+        if (icon) return icon;
+    }
+    return 'mdi:tag-outline';
+}
+
+// The event's labels, most important first. Integrations without the labels
+// field send only label.
+export function eventLabels(item) {
+    if (Array.isArray(item?.labels) && item.labels.length) {
+        return item.labels.filter((l) => l !== null && l !== undefined && l !== '').map(String);
+    }
+    return item?.label ? [String(item.label)] : [];
 }
 
 const translations = {

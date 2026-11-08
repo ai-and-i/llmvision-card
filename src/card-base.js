@@ -1,5 +1,5 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba, escapeHtml } from './helpers.js';
+import { translate, hexToRgba, escapeHtml, eventLabels, getLabelIcon } from './helpers.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -107,11 +107,14 @@ export class BaseLLMVisionCard extends HTMLElement {
                 const cameraEntityId = item.camera_name || '';
                 const cameraEntity = cameraEntityId ? hass.states[cameraEntityId] : undefined;
                 const cameraFriendlyName = cameraEntity ? (cameraEntity.attributes?.friendly_name || cameraEntityId) : '';
+                const labels = eventLabels(item);
                 return {
                     title: item.title || '',
                     description: item.description || '',
                     category: item.category || '',
-                    label: item.label || '',
+                    // The primary label, which picks the event's icon
+                    label: labels[0] || '',
+                    labels,
                     keyFrame: (item.key_frame || ''),
                     clip: (item.clip || ''),
                     cameraName: cameraFriendlyName,
@@ -247,6 +250,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                 cameraName: d.cameraName,
                 category: d.category,
                 label: d.label,
+                labels: d.labels,
                 icon: icon,
                 prefix: 'popup',
                 eventId: d.id
@@ -274,7 +278,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         return { bgColorRgba, iconColorRgba };
     }
 
-    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, icon, prefix, eventId }, hassArg) {
+    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, icon, prefix, eventId }, hassArg) {
         const hass = hassArg || this.hass;
         const formattedTime = this.formatDateTimeFull(startTime);
         const secondaryText = cameraName ? `${formattedTime} • ${cameraName}` : formattedTime;
@@ -293,7 +297,9 @@ export class BaseLLMVisionCard extends HTMLElement {
         const menuThumbDownClass = `${prefix}-menu-item-thumbs-down`;
 
         const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
-        const shouldShowCategory = Boolean(category && !(label && normalize(label) === normalize(category)));
+        const labelList = Array.isArray(labels) ? labels : (label ? [label] : []);
+        // No category badge when a label chip already says it
+        const shouldShowCategory = Boolean(category && !labelList.some((l) => normalize(l) === normalize(category)));
         const hasSnapshot = typeof keyFrame === 'string' ? keyFrame.trim().length > 0 : Boolean(keyFrame);
         // The clip when there is one, with the key frame as its poster
         const mediaBlock = clip
@@ -343,11 +349,11 @@ export class BaseLLMVisionCard extends HTMLElement {
                                     <ha-icon icon="mdi:label"></ha-icon>
                                     <span class="text" style="text-transform: capitalize;">${escapeHtml(category)}</span>
                                 </span>` : ''}
-                                ${label ? `
+                                ${labelList.map((l) => `
                                 <span class="${prefix}-badge">
-                                    <ha-icon icon="${escapeHtml(icon || 'mdi:tag-outline')}"></ha-icon>
-                                    <span class="text" style="text-transform: capitalize;">${escapeHtml(label)}</span>
-                                </span>` : ''}
+                                    <ha-icon icon="${escapeHtml(getLabelIcon(l, category))}"></ha-icon>
+                                    <span class="text" style="text-transform: capitalize;">${escapeHtml(l)}</span>
+                                </span>`).join('')}
                             </div>
                         </div>
                     </div>
@@ -643,7 +649,7 @@ export class BaseLLMVisionCard extends HTMLElement {
             const metadata = {
                 title: event || '',
                 description: summary || '',
-                label: label || '',
+                label: labelList.join(', '),
                 category: category || '',
                 icon: icon || this.default_icon || '',
                 eventId: eventId || '',
@@ -681,7 +687,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                     form.append('isDescription', metadata.description || '');
                     form.append('shouldBeDescription', correctedDescription || summary || '');
                     form.append('isLabel', metadata.label || '');
-                    form.append('shouldBeLabel', correctedLabel || label || '');
+                    form.append('shouldBeLabel', correctedLabel || metadata.label || '');
                     form.append('isCategory', metadata.category || '');
                     form.append('shouldBeCategory', correctedCategory || category || '');
                     form.append('isIcon', metadata.icon || '');
