@@ -1,4 +1,4 @@
-import { getIcon, translate } from './helpers.js';
+import { getIcon, translate, escapeHtml } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
 import { BaseLLMVisionCard } from './card-base.js';
@@ -241,25 +241,10 @@ export class LLMVisionPreviewCard extends BaseLLMVisionCard {
                 <div class="preview-icon-container">
                     <ha-icon icon="${icon}" style="color:white;font-size:24px;"></ha-icon>
                 </div>
-                <div class="preview-event-details">${cameraName} • ${dateLabel}, ${timeStr}</div>
-                <div class="preview-event-title">${event.title}</div>
+                <div class="preview-event-details">${escapeHtml(`${cameraName} • ${dateLabel}, ${timeStr}`)}</div>
+                <div class="preview-event-title">${escapeHtml(event.title)}</div>
             `;
-        container.addEventListener('click', () => {
-            this.resolveKeyFrame(hass, event.keyFrame).then(url => {
-                this.showPopup({
-                    event: event.title,
-                    summary: event.description,
-                    startTime: event.startTime,
-                    keyFrame: url,
-                    cameraName: event.cameraName,
-                    category: event.category,
-                    label: event.label,
-                    icon: icon,
-                    prefix: 'popup',
-                    eventId: event.id
-                }, hass);
-            });
-        });
+        container.addEventListener('click', () => this.openEventPopup(hass, event, icon));
         this.content.innerHTML = '';
         this.content.appendChild(container);
         this.resolveKeyFrame(hass, event.keyFrame).then(url => {

@@ -1,4 +1,4 @@
-import { getIcon, translate } from './helpers.js';
+import { getIcon, translate, escapeHtml } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
 import { BaseLLMVisionCard } from './card-base.js';
@@ -222,6 +222,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
                     .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;}
                     .event-details{flex-grow:1;min-width:0;}
+                    .clip-badge{--mdc-icon-size:14px;vertical-align:-2px;margin-right:4px;}
                 </style>
             `;
             this.content = this.querySelector('.card-content');
@@ -304,28 +305,13 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     <ha-icon icon="${icon}" style="color:${colorsComputed.iconColorRgba};"></ha-icon>
                 </div>
                 <div class="event-details">
-                    <h3>${d.title}</h3>
-                    <p>${d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr}</p>
+                    <h3>${escapeHtml(d.title)}</h3>
+                    <p>${d.clip ? `<ha-icon class="clip-badge" icon="mdi:video-outline" title="${escapeHtml(translate('video', this.language) || 'Video')}"></ha-icon>` : ''}${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
                 </div>
                 <img alt="Key frame ${idx + 1}" style="display:none;" onerror="this.style.display='none'">
             `;
             const imgEl = container.querySelector('img');
-            container.addEventListener('click', () => {
-                this.resolveKeyFrame(hass, d.keyFrame).then(url => {
-                    this.showPopup({
-                        event: d.title,
-                        summary: d.description,
-                        startTime: d.startTime,
-                        keyFrame: url,
-                        cameraName: d.cameraName,
-                        category: d.category,
-                        label: d.label,
-                        icon: icon,
-                        prefix: 'popup',
-                        eventId: d.id
-                    }, hass);
-                });
-            });
+            container.addEventListener('click', () => this.openEventPopup(hass, d, icon));
             this.content.appendChild(container);
             this.resolveKeyFrame(hass, d.keyFrame).then(url => {
                 if (!url) return;

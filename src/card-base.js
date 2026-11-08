@@ -1,5 +1,10 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba } from './helpers.js';
+import { translate, hexToRgba, escapeHtml } from './helpers.js';
+
+// Lifetime of the signed URLs that media_source/resolve_media returns
+const MEDIA_URL_TTL_S = 60 * 60 * 3;
+// Resolve again this long before a cached URL expires
+const MEDIA_URL_RENEW_S = 60 * 10;
 
 function __logLLMVisionBadge(context) {
     if (!window.__LLMVISION_BADGE_LOGGED) {
@@ -108,6 +113,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                     category: item.category || '',
                     label: item.label || '',
                     keyFrame: (item.key_frame || ''),
+                    clip: (item.clip || ''),
                     cameraName: cameraFriendlyName,
                     startTime: item.start || null,
                     endTime: item.end || null,
@@ -191,24 +197,60 @@ export class BaseLLMVisionCard extends HTMLElement {
         return `${datePart}, ${timePart}`;
     }
 
-    resolveKeyFrame(hass, keyFrame) {
-        if (!keyFrame) return Promise.resolve('');
-        if (/^https?:\/\//i.test(keyFrame)) return Promise.resolve(keyFrame);
-        const mediaContentID = keyFrame.replace('/media/', 'media-source://media_source/local/');
-        if (this.imageCache.has(mediaContentID)) {
-            return Promise.resolve(this.imageCache.get(mediaContentID));
+    // Turns a file under /media/ (a key frame or a clip) into a signed URL
+    resolveMedia(hass, path, { fallback = path } = {}) {
+        if (!path) return Promise.resolve('');
+        if (/^https?:\/\//i.test(path)) return Promise.resolve(path);
+        const mediaContentID = path.replace('/media/', 'media-source://media_source/local/');
+        const cached = this.imageCache.get(mediaContentID);
+        if (cached && cached.renewAt > Date.now()) {
+            return Promise.resolve(cached.url);
         }
         return hass.callWS({
             type: "media_source/resolve_media",
             media_content_id: mediaContentID,
-            expires: 60 * 60 * 3
+            expires: MEDIA_URL_TTL_S
         }).then(result => {
             const url = result.url;
-            this.imageCache.set(mediaContentID, url);
+            this.imageCache.set(mediaContentID, {
+                url,
+                renewAt: Date.now() + (MEDIA_URL_TTL_S - MEDIA_URL_RENEW_S) * 1000,
+            });
             return url;
         }).catch(err => {
             console.error("Error resolving media content ID:", err);
-            return keyFrame;
+            return fallback;
+        });
+    }
+
+    resolveKeyFrame(hass, keyFrame) {
+        return this.resolveMedia(hass, keyFrame);
+    }
+
+    // '' when the clip can't be resolved, so that the popup shows the key frame
+    resolveClip(hass, clip) {
+        return this.resolveMedia(hass, clip, { fallback: '' });
+    }
+
+    // Resolves the event's key frame and clip, then opens its popup
+    openEventPopup(hass, d, icon) {
+        return Promise.all([
+            this.resolveKeyFrame(hass, d.keyFrame),
+            this.resolveClip(hass, d.clip),
+        ]).then(([keyFrameUrl, clipUrl]) => {
+            this.showPopup({
+                event: d.title,
+                summary: d.description,
+                startTime: d.startTime,
+                keyFrame: keyFrameUrl,
+                clip: clipUrl,
+                cameraName: d.cameraName,
+                category: d.category,
+                label: d.label,
+                icon: icon,
+                prefix: 'popup',
+                eventId: d.id
+            }, hass);
         });
     }
 
@@ -232,7 +274,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         return { bgColorRgba, iconColorRgba };
     }
 
-    showPopup({ event, summary, startTime, keyFrame, cameraName, category, label, icon, prefix, eventId }, hassArg) {
+    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, icon, prefix, eventId }, hassArg) {
         const hass = hassArg || this.hass;
         const formattedTime = this.formatDateTimeFull(startTime);
         const secondaryText = cameraName ? `${formattedTime} • ${cameraName}` : formattedTime;
@@ -253,6 +295,10 @@ export class BaseLLMVisionCard extends HTMLElement {
         const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
         const shouldShowCategory = Boolean(category && !(label && normalize(label) === normalize(category)));
         const hasSnapshot = typeof keyFrame === 'string' ? keyFrame.trim().length > 0 : Boolean(keyFrame);
+        // The clip when there is one, with the key frame as its poster
+        const mediaBlock = clip
+            ? `<video controls preload="metadata"${hasSnapshot ? ` poster="${escapeHtml(keyFrame)}"` : ''} src="${escapeHtml(clip)}"></video>`
+            : `<img src="${escapeHtml(keyFrame)}" alt="Event Snapshot" onerror="this.style.display='none'">`;
 
         const htmlBlock = `
                 <div>
@@ -285,28 +331,28 @@ export class BaseLLMVisionCard extends HTMLElement {
                     </div>
                     <div class="${titleRowClass}">
                         <div class="${prefix}-title-main">
-                            <h2>${event}</h2>
+                            <h2>${escapeHtml(event)}</h2>
                         </div>
                         <div class="${prefix}-title-secondary">
-                            <p class="secondary"><span>${secondaryText}</span></p>
+                            <p class="secondary"><span>${escapeHtml(secondaryText)}</span></p>
                         </div>
                         <div class="${prefix}-title-tertiary">
                             <div class="${prefix}-badges-row">
                                 ${shouldShowCategory ? `
                                 <span class="${prefix}-badge">
                                     <ha-icon icon="mdi:label"></ha-icon>
-                                    <span class="text" style="text-transform: capitalize;">${category}</span>
+                                    <span class="text" style="text-transform: capitalize;">${escapeHtml(category)}</span>
                                 </span>` : ''}
                                 ${label ? `
                                 <span class="${prefix}-badge">
-                                    <ha-icon icon="${icon || 'mdi:tag-outline'}"></ha-icon>
-                                    <span class="text" style="text-transform: capitalize;">${label}</span>
+                                    <ha-icon icon="${escapeHtml(icon || 'mdi:tag-outline')}"></ha-icon>
+                                    <span class="text" style="text-transform: capitalize;">${escapeHtml(label)}</span>
                                 </span>` : ''}
                             </div>
                         </div>
                     </div>
-                    <img src="${keyFrame}" alt="Event Snapshot" onerror="this.style.display='none'">
-                    <p class="summary">${summary}</p>
+                    ${mediaBlock}
+                    <p class="summary">${escapeHtml(summary)}</p>
                 </div>
             `;
 
@@ -419,12 +465,17 @@ export class BaseLLMVisionCard extends HTMLElement {
                         --mdc-icon-size: 18px;
                     }
     
-                    /* Image and text */
-                    .${contentClass} img {
+                    /* Image or clip, and text */
+                    .${contentClass} img, .${contentClass} video {
                         width: 100%;
                         height: auto;
                         border-radius: calc(var(--ha-card-border-radius, 25px) - 10px);
                         margin-top: 10px;
+                    }
+                    .${contentClass} video {
+                        display: block;
+                        max-height: 60vh;
+                        background: #000;
                     }
                     .${contentClass} .summary {
                         color: var(--secondary-text-color);
@@ -990,6 +1041,8 @@ export class BaseLLMVisionCard extends HTMLElement {
     }
 
     closePopup(wrapper, overlayClass, popstateHandler, escHandler) {
+        // Stop the clip now rather than when the fade-out ends
+        wrapper.querySelectorAll('video').forEach((video) => video.pause());
         const overlay = wrapper.querySelector(`.${overlayClass}`);
         overlay.classList.remove('show');
         overlay.addEventListener('transitionend', () => {

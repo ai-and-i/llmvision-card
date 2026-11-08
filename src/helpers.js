@@ -13,6 +13,17 @@ export function hexToRgba(hex, alpha = 1) {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
+// Event titles and descriptions come from the model, and camera names from
+// users: they are text, never markup.
+export function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export function getIcon(category, label) {
     try {
         const categoryData = labels[category];
