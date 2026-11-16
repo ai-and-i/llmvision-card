@@ -1,4 +1,4 @@
-import { getIcon, translate, escapeHtml } from './helpers.js';
+import { getIcon, translate, escapeHtml, eventLabels } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
 import { BaseLLMVisionCard } from './card-base.js';
@@ -10,10 +10,12 @@ class TimelineCardEditor extends LitElement {
     render() {
         if (!this._config) return html`<div>Please configure the card.</div>`;
         const schema = this._getSchema();
-        const generalSchema = schema.slice(0, 3);
-        const filterSchema = schema.slice(3, 6);
-        const localeSchema = schema.slice(6, 8);
-        const customizeSchema = schema.slice(8);
+        const generalSchema = schema.slice(0, 4);
+        const filterSchema = schema.slice(4, 7);
+        const localeSchema = schema.slice(7, 9);
+        const customizeSchema = schema.slice(9);
+        // Labels are shown unless turned off, so the switch starts on
+        const data = { show_labels: true, ...this._config };
         return html`
             <style>
                 .card-content{display:flex;flex-direction:column;gap:16px;}
@@ -30,7 +32,7 @@ class TimelineCardEditor extends LitElement {
                     <details open>
                         <summary><ha-icon class="section-icon" icon="mdi:cog"></ha-icon>General</summary>
                         <div class="section-content">
-                            <ha-form .data=${this._config} .schema=${generalSchema}
+                            <ha-form .data=${data} .schema=${generalSchema}
                                 .computeLabel=${this._computeLabel} .computeHelper=${this._computeHelper}
                                 @value-changed=${this._valueChanged}></ha-form>
                         </div>
@@ -38,7 +40,7 @@ class TimelineCardEditor extends LitElement {
                     <details>
                         <summary><ha-icon class="section-icon" icon="mdi:filter-variant"></ha-icon>Filters</summary>
                         <div class="section-content">
-                            <ha-form .data=${this._config} .schema=${filterSchema}
+                            <ha-form .data=${data} .schema=${filterSchema}
                                 .computeLabel=${this._computeLabel} .computeHelper=${this._computeHelper}
                                 @value-changed=${this._valueChanged}></ha-form>
                         </div>
@@ -46,7 +48,7 @@ class TimelineCardEditor extends LitElement {
                     <details>
                         <summary><ha-icon class="section-icon" icon="mdi:translate"></ha-icon>Locale</summary>
                         <div class="section-content">
-                            <ha-form .data=${this._config} .schema=${localeSchema}
+                            <ha-form .data=${data} .schema=${localeSchema}
                                 .computeLabel=${this._computeLabel} .computeHelper=${this._computeHelper}
                                 @value-changed=${this._valueChanged}></ha-form>
                         </div>
@@ -54,7 +56,7 @@ class TimelineCardEditor extends LitElement {
                     <details>
                         <summary><ha-icon class="section-icon" icon="mdi:palette"></ha-icon>Customization</summary>
                         <div class="section-content">
-                            <ha-form .data=${this._config} .schema=${customizeSchema}
+                            <ha-form .data=${data} .schema=${customizeSchema}
                                 .computeLabel=${this._computeLabel} .computeHelper=${this._computeHelper}
                                 @value-changed=${this._valueChanged}></ha-form>
                         </div>
@@ -68,6 +70,7 @@ class TimelineCardEditor extends LitElement {
             { name: "header", description: "Header text for the card.", selector: { text: {} } },
             { name: "number_of_events", description: "Number of most recent events to display. A maximum of 10 events can be displayed.", selector: { number: { min: 1, max: 100, step: 1 } } },
             { name: "number_of_days", description: "Number of days to look back for events. Useful for filtering older events.", selector: { number: { min: 1, max: 365, step: 1 } } },
+            { name: "show_labels", description: "Show each event's labels under its title.", selector: { boolean: {} } },
         ];
         const filterSchema = [
             {
@@ -145,7 +148,7 @@ class TimelineCardEditor extends LitElement {
             number_of_days: "Number of Days", category_filters: "Category Filters",
             camera_filters: "Camera Filters", filter_false_positives: "Filter False Positives",
             custom_colors: "Custom Colors", language: "Language",
-            time_format: "Time Format",
+            time_format: "Time Format", show_labels: "Show Labels",
             default_icon: "Default Icon", default_color: "Default Color"
         })[s.name] || s.name;
     }
@@ -170,6 +173,8 @@ customElements.define("timeline-card-editor", TimelineCardEditor);
 class LLMVisionCard extends BaseLLMVisionCard {
     setConfig(config) {
         this.header = config.header || '';
+        // Labels under each event's title, unless turned off
+        this.show_labels = config.show_labels !== false;
         this.setCommonConfig(config, { requireEventLimits: true });
     }
     static getConfigElement() { return document.createElement('timeline-card-editor'); }
@@ -223,6 +228,8 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;}
                     .event-details{flex-grow:1;min-width:0;}
                     .clip-badge{--mdc-icon-size:14px;vertical-align:-2px;margin-right:4px;}
+                    .event-labels{display:flex;gap:4px;margin-top:4px;overflow:hidden;}
+                    .event-label{flex-shrink:0;font-size:var(--ha-font-size-xs,11px);line-height:16px;padding:0 6px;border-radius:8px;color:var(--primary-text-color);white-space:nowrap;text-transform:capitalize;}
                 </style>
             `;
             this.content = this.querySelector('.card-content');
@@ -258,7 +265,8 @@ class LLMVisionCard extends BaseLLMVisionCard {
             number_of_events: this.number_of_events,
             number_of_days: this.number_of_days,
             time_format: this.time_format,
-            filter_false_positives: this.filter_false_positives
+            filter_false_positives: this.filter_false_positives,
+            show_labels: this.show_labels
         });
         if (currentHash === this._lastEventHash) return;
         this._lastEventHash = currentHash;
@@ -298,6 +306,9 @@ class LLMVisionCard extends BaseLLMVisionCard {
                 icon = this.default_icon;
             }
             const colorsComputed = this.computeColors(d.category, defaultColor);
+            const labelChips = this.show_labels
+                ? eventLabels(d).map((l) => `<span class="event-label" style="background-color:${colorsComputed.bgColorRgba};">${escapeHtml(l)}</span>`).join('')
+                : '';
             const container = document.createElement('div');
             container.classList.add('event-container');
             container.innerHTML = `
@@ -307,6 +318,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
                 <div class="event-details">
                     <h3>${escapeHtml(d.title)}</h3>
                     <p>${d.clip ? `<ha-icon class="clip-badge" icon="mdi:video-outline" title="${escapeHtml(translate('video', this.language) || 'Video')}"></ha-icon>` : ''}${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
+                    ${labelChips ? `<div class="event-labels">${labelChips}</div>` : ''}
                 </div>
                 <img alt="Key frame ${idx + 1}" style="display:none;" onerror="this.style.display='none'">
             `;
