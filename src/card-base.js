@@ -315,7 +315,9 @@ export class BaseLLMVisionCard extends HTMLElement {
                         <button class="${closeBtnClass}" title="Close" style="font-size:30px">
                             <ha-icon icon="mdi:close"></ha-icon>
                         </button>
-                        <div class="spacer"></div>
+                        <div class="${prefix}-title-main">
+                            <h2>${escapeHtml(event)}</h2>
+                        </div>
                         ${eventId ? `
                             <div class="${menuWrapperClass}">
                             <button class="${menuBtnClass}" title="Menu" style="font-size:26px">
@@ -336,12 +338,9 @@ export class BaseLLMVisionCard extends HTMLElement {
                                     <span>${translate('delete', this.language) || 'Delete'}</span>
                                 </button>
                             </div>
-                        </div>` : ''}
+                        </div>` : `<div class="${prefix}-menu-placeholder"></div>`}
                     </div>
                     <div class="${titleRowClass}">
-                        <div class="${prefix}-title-main">
-                            <h2>${escapeHtml(event)}</h2>
-                        </div>
                         <div class="${prefix}-title-secondary">
                             <p class="secondary"><span>${escapeHtml(secondaryText)}</span></p>
                         </div>
@@ -412,8 +411,11 @@ export class BaseLLMVisionCard extends HTMLElement {
                         gap: 8px;
                         margin-bottom: 4px;
                     }
-                    .${headerRowClass} .spacer {
-                        flex: 1 1 auto;
+                    /* Same width on both sides of the title keeps it centered */
+                    .${headerRowClass} > .${closeBtnClass},
+                    .${headerRowClass} > .${menuWrapperClass},
+                    .${headerRowClass} > .${prefix}-menu-placeholder {
+                        flex: 0 0 40px;
                     }
     
                     /* Title row: icon + title */
@@ -424,12 +426,13 @@ export class BaseLLMVisionCard extends HTMLElement {
                         gap: 6px;
                         margin-bottom: 6px;
                     }
+                    /* Title, between the close and menu buttons */
                     .${prefix}-title-main {
+                        flex: 1 1 auto;
+                        min-width: 0;
                         display: flex;
                         align-items: center;
-                        gap: 10px;
                         justify-content: center;
-                        width: 100%;
                     }
                     .${prefix}-title-main h2 {
                         flex: 1 1 auto;
@@ -663,15 +666,6 @@ export class BaseLLMVisionCard extends HTMLElement {
                         }
                         .${headerRowClass} {
                             padding-top: 10px;
-                        }
-                        .${prefix}-title-main h2 {
-                            max-width: 78%;
-                            overflow: hidden;
-                            text-overflow: ellipsis;
-                            white-space: nowrap;
-                            margin: 0;
-                            font-family: var(--ha-font-family-heading, "Roboto");
-                            text-align: center;
                         }
                     }
                 </style>

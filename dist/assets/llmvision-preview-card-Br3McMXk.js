@@ -4,7 +4,9 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                         <button class="${w}" title="Close" style="font-size:30px">
                             <ha-icon icon="mdi:close"></ha-icon>
                         </button>
-                        <div class="spacer"></div>
+                        <div class="${g}-title-main">
+                            <h2>${n(e)}</h2>
+                        </div>
                         ${_?`
                             <div class="${D}">
                             <button class="${O}" title="Menu" style="font-size:26px">
@@ -25,12 +27,9 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                                     <span>${a(`delete`,this.language)||`Delete`}</span>
                                 </button>
                             </div>
-                        </div>`:``}
+                        </div>`:`<div class="${g}-menu-placeholder"></div>`}
                     </div>
                     <div class="${E}">
-                        <div class="${g}-title-main">
-                            <h2>${n(e)}</h2>
-                        </div>
                         <div class="${g}-title-secondary">
                             <p class="secondary"><span>${n(x)}</span></p>
                         </div>
@@ -98,8 +97,11 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                         gap: 8px;
                         margin-bottom: 4px;
                     }
-                    .${T} .spacer {
-                        flex: 1 1 auto;
+                    /* Same width on both sides of the title keeps it centered */
+                    .${T} > .${w},
+                    .${T} > .${D},
+                    .${T} > .${g}-menu-placeholder {
+                        flex: 0 0 40px;
                     }
     
                     /* Title row: icon + title */
@@ -110,12 +112,13 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                         gap: 6px;
                         margin-bottom: 6px;
                     }
+                    /* Title, between the close and menu buttons */
                     .${g}-title-main {
+                        flex: 1 1 auto;
+                        min-width: 0;
                         display: flex;
                         align-items: center;
-                        gap: 10px;
                         justify-content: center;
-                        width: 100%;
                     }
                     .${g}-title-main h2 {
                         flex: 1 1 auto;
@@ -349,15 +352,6 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                         }
                         .${T} {
                             padding-top: 10px;
-                        }
-                        .${g}-title-main h2 {
-                            max-width: 78%;
-                            overflow: hidden;
-                            text-overflow: ellipsis;
-                            white-space: nowrap;
-                            margin: 0;
-                            font-family: var(--ha-font-family-heading, "Roboto");
-                            text-align: center;
                         }
                     }
                 </style>
