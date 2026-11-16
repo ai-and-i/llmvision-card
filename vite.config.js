@@ -28,6 +28,11 @@ export default defineConfig({
                     chunk.name === "llmvision-preview-card"
                         ? "assets/[name]-[hash].js"
                         : "[name].js",
+                // The chunk the entries share: lit plus the card's helpers.
+                // Its name changes with its content, so a new build never
+                // asks for a file name a browser may have cached a 404 for
+                // (Home Assistant serves /local 404s with a 31-day max-age).
+                chunkFileNames: "assets/shared-[hash].js",
                 format: "es",
             },
         },

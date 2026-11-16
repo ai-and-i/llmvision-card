@@ -1,5 +1,6 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba, escapeHtml, eventLabels, getIcon, getLabelIcon, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
+import { translate, hexToRgba, escapeHtml, eventLabels, getIcon, getLabelIcon, labelCategory, solidColor, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
+import { boxTracks, withoutBoxes, attachBoxOverlay, boxOverlayCss } from './boxes.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -321,10 +322,21 @@ export class BaseLLMVisionCard extends HTMLElement {
         return { bgColorRgba, iconColorRgba };
     }
 
+    // The full color of a label, as its badge shows it: its style's color, else
+    // the color of the category it belongs to (see labelCategory). Bounding
+    // boxes use it so that a box matches its label. {color, text} or null.
+    labelColor(label, category) {
+        const style = labelStyle(this.label_styles, label);
+        if (style) return solidColor(style.solid);
+        const own = labelCategory(label, category);
+        return solidColor(this.computeColors(own, getIcon(own, '').color).iconColorRgba);
+    }
+
     // An event's category and label badges: the category (unless a label
     // already says it) with its icon, then each label with its style's
     // icon or its known icon. A label with a style has its colors; the others
-    // are tinted in the category color, with the icon in the full color.
+    // are tinted in the color of the category they belong to ("raccoon" in
+    // the animal color even in a person event), with the icon in full color.
     // Used by the popup and the timeline list, with their own badge class.
     labelBadgesHtml(category, labels, badgeClass) {
         const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
@@ -337,7 +349,11 @@ export class BaseLLMVisionCard extends HTMLElement {
         return (showCategory ? categoryBadge(categoryIcon, category) : '') + labelList.map((l) => {
             const style = labelStyle(this.label_styles, l);
             const icon = style?.icon || getLabelIcon(l, category);
-            return style ? badge(icon, l, labelChipCss(style)) : categoryBadge(icon, l);
+            if (style) return badge(icon, l, labelChipCss(style));
+            const own = labelCategory(l, category);
+            if (own === category) return categoryBadge(icon, l);
+            const colors = this.computeColors(own, getIcon(own, '').color);
+            return badge(icon, l, labelChipCss(null, colors.bgColorRgba), colors.iconColorRgba);
         }).join('');
     }
 
@@ -361,9 +377,11 @@ export class BaseLLMVisionCard extends HTMLElement {
 
         const labelList = Array.isArray(labels) ? labels : (label ? [label] : []);
         const hasSnapshot = typeof keyFrame === 'string' ? keyFrame.trim().length > 0 : Boolean(keyFrame);
+        // Bounding boxes from the details, drawn over the clip
+        const boxes = clip ? boxTracks(details, (l, c) => this.labelColor(l, c)) : { rate: 1, tracks: [] };
         // The clip when there is one, with the key frame as its poster
         const mediaBlock = clip
-            ? `<video controls preload="metadata"${hasSnapshot ? ` poster="${escapeHtml(keyFrame)}"` : ''} src="${escapeHtml(clip)}"></video>`
+            ? `<div class="llmvision-boxes-media"><video controls preload="metadata"${hasSnapshot ? ` poster="${escapeHtml(keyFrame)}"` : ''} src="${escapeHtml(clip)}"></video></div>`
             : `<img src="${escapeHtml(keyFrame)}" alt="Event Snapshot" onerror="this.style.display='none'">`;
 
         const htmlBlock = `
@@ -409,10 +427,10 @@ export class BaseLLMVisionCard extends HTMLElement {
                     </div>
                     ${mediaBlock}
                     <p class="summary">${escapeHtml(summary)}</p>
-                    ${hasDetails(details) ? `
+                    ${hasDetails(withoutBoxes(details)) ? `
                     <details class="${prefix}-details">
                         <summary>${escapeHtml(translate('additional_details', this.language) || 'Additional details')}</summary>
-                        <div class="${prefix}-details-body">${renderDetails(details)}</div>
+                        <div class="${prefix}-details-body">${renderDetails(withoutBoxes(details))}</div>
                     </details>` : ''}
                 </div>
             `;
@@ -553,6 +571,8 @@ export class BaseLLMVisionCard extends HTMLElement {
                         --mdc-icon-size: 18px;
                     }
     
+                    ${boxOverlayCss}
+
                     /* Image or clip, and text */
                     .${contentClass} img, .${contentClass} video {
                         width: 100%;
@@ -1210,6 +1230,9 @@ export class BaseLLMVisionCard extends HTMLElement {
         }
 
         document.body.appendChild(wrapper);
+        if (boxes.tracks.length) {
+            attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes);
+        }
         requestAnimationFrame(() => overlayEl.classList.add('show'));
     }
 

@@ -62,6 +62,19 @@ export function getIcon(category, label) {
     return { icon: 'mdi:motion-sensor', color: '#757575' };
 }
 
+// The category a label belongs to: category when the label is known there (or
+// is the category itself), else the first category that knows it, else
+// category. "raccoon" is an animal label even in a person event.
+export function labelCategory(label, category) {
+    const text = typeof label === 'string' ? label.trim().toLowerCase() : '';
+    if (!text || text === category || knownLabelIcon(ownValue(labels, category), text)) return category;
+    if (ownValue(labels, text)) return text;
+    for (const [name, categoryData] of Object.entries(labels)) {
+        if (knownLabelIcon(categoryData, text)) return name;
+    }
+    return category;
+}
+
 // Icon of one label chip: the label's icon in the event's category, else in any
 // category, else a generic tag.
 export function getLabelIcon(label, category) {
@@ -100,6 +113,8 @@ function parseColor(color) {
         return color.map((c) => Math.max(0, Math.min(255, Math.round(Number(c)))));
     }
     if (typeof color !== 'string') return null;
+    const rgb = color.trim().match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (rgb) return rgb.slice(1, 4).map((c) => Math.min(255, Number(c)));
     let hex = color.trim().replace(/^#/, '');
     if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.split('').map((x) => x + x).join('');
     if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
@@ -127,9 +142,11 @@ export function normalizeLabelStyles(config) {
         if (!rgb) continue;
         const fill = String(style.fill || 'light').toLowerCase();
         const icon = typeof style.icon === 'string' && /^[a-z0-9-]+:[a-z0-9-]+$/i.test(style.icon) ? style.icon : '';
+        // solid: the full color, for marks other than the chip (box outlines)
+        const solid = `rgb(${rgb.join(',')})`;
         result[String(label).trim().toLowerCase()] = fill === 'solid'
-            ? { background: `rgb(${rgb.join(',')})`, color: textColorOn(rgb), icon }
-            : { background: `rgba(${rgb.join(',')},${FILL_ALPHA[fill] ?? FILL_ALPHA.light})`, color: '', icon };
+            ? { background: solid, color: textColorOn(rgb), icon, solid }
+            : { background: `rgba(${rgb.join(',')},${FILL_ALPHA[fill] ?? FILL_ALPHA.light})`, color: '', icon, solid };
     }
     return result;
 }
@@ -139,6 +156,12 @@ export function labelStyle(styles, label) {
     if (!styles || label === null || label === undefined) return null;
     const key = String(label).trim().toLowerCase();
     return Object.prototype.hasOwnProperty.call(styles, key) ? styles[key] : null;
+}
+
+// A color as a solid CSS color plus the text color that reads on it, or null
+export function solidColor(color) {
+    const rgb = parseColor(color);
+    return rgb ? { color: `rgb(${rgb.join(',')})`, text: textColorOn(rgb) } : null;
 }
 
 // Inline CSS of a label chip: its label style, else the fallback background
