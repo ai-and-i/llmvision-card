@@ -407,7 +407,8 @@ export class BaseLLMVisionCard extends HTMLElement {
     
                     .${headerRowClass} {
                         display: flex;
-                        align-items: center;
+                        /* Buttons line up with the title's first line */
+                        align-items: flex-start;
                         gap: 8px;
                         margin-bottom: 4px;
                     }
@@ -447,7 +448,6 @@ export class BaseLLMVisionCard extends HTMLElement {
                         flex: 1 1 auto;
                         min-width: 0;
                         display: flex;
-                        align-items: center;
                         justify-content: center;
                     }
                     .${prefix}-title-main h2 {
@@ -459,6 +459,8 @@ export class BaseLLMVisionCard extends HTMLElement {
                         word-break: break-word;
                         margin: 0;
                         line-height: 1.25;
+                        /* Centers the first line on the 40px buttons */
+                        padding-top: calc((40px - 1.25em) / 2);
                         font-family: var(--ha-font-family-heading, "Roboto");
                         text-align: center;
                     }
@@ -677,7 +679,13 @@ export class BaseLLMVisionCard extends HTMLElement {
                             max-width: 100%;
                             width: 100%;
                             max-height: 100%;
-                            padding: 15px;
+                            box-sizing: border-box;
+                            /* Full screen: keep clear of the notch, status bar
+                               and home indicator */
+                            padding: max(15px, env(safe-area-inset-top))
+                                max(15px, env(safe-area-inset-right))
+                                max(15px, env(safe-area-inset-bottom))
+                                max(15px, env(safe-area-inset-left));
                             border-radius: 0;
                             height: 100%;
                         }
