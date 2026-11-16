@@ -1,5 +1,5 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba, escapeHtml, eventLabels, getLabelIcon, hasDetails, renderDetails } from './helpers.js';
+import { translate, hexToRgba, escapeHtml, eventLabels, getLabelIcon, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -40,6 +40,8 @@ export class BaseLLMVisionCard extends HTMLElement {
         this.number_of_events = config.number_of_events;
         this.number_of_days = config.number_of_days;
         this.custom_colors = config.custom_colors || {};
+        // Colors and icons of specific labels (see normalizeLabelStyles)
+        this.label_styles = normalizeLabelStyles(config.label_styles);
         this.default_icon = config.default_icon || 'mdi:motion-sensor';
         this.default_color = config.default_color || '#929292';
         this.time_format = config.time_format || '24h';
@@ -351,11 +353,14 @@ export class BaseLLMVisionCard extends HTMLElement {
                                     <ha-icon icon="mdi:label"></ha-icon>
                                     <span class="text" style="text-transform: capitalize;">${escapeHtml(category)}</span>
                                 </span>` : ''}
-                                ${labelList.map((l) => `
-                                <span class="${prefix}-badge">
-                                    <ha-icon icon="${escapeHtml(getLabelIcon(l, category))}"></ha-icon>
+                                ${labelList.map((l) => {
+                                    const style = labelStyle(this.label_styles, l);
+                                    return `
+                                <span class="${prefix}-badge" style="${labelChipCss(style)}">
+                                    <ha-icon icon="${escapeHtml(style?.icon || getLabelIcon(l, category))}"></ha-icon>
                                     <span class="text" style="text-transform: capitalize;">${escapeHtml(l)}</span>
-                                </span>`).join('')}
+                                </span>`;
+                                }).join('')}
                             </div>
                         </div>
                     </div>

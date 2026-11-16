@@ -1,4 +1,4 @@
-import { getIcon, translate, escapeHtml, eventLabels } from './helpers.js';
+import { getIcon, translate, escapeHtml, eventLabels, labelStyle, labelChipCss } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
 import { BaseLLMVisionCard } from './card-base.js';
@@ -266,7 +266,8 @@ class LLMVisionCard extends BaseLLMVisionCard {
             number_of_days: this.number_of_days,
             time_format: this.time_format,
             filter_false_positives: this.filter_false_positives,
-            show_labels: this.show_labels
+            show_labels: this.show_labels,
+            label_styles: this.label_styles
         });
         if (currentHash === this._lastEventHash) return;
         this._lastEventHash = currentHash;
@@ -307,7 +308,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
             }
             const colorsComputed = this.computeColors(d.category, defaultColor);
             const labelChips = this.show_labels
-                ? eventLabels(d).map((l) => `<span class="event-label" style="background-color:${colorsComputed.bgColorRgba};">${escapeHtml(l)}</span>`).join('')
+                ? eventLabels(d).map((l) => `<span class="event-label" style="${labelChipCss(labelStyle(this.label_styles, l), colorsComputed.bgColorRgba)}">${escapeHtml(l)}</span>`).join('')
                 : '';
             const container = document.createElement('div');
             container.classList.add('event-container');

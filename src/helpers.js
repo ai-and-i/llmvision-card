@@ -66,6 +66,70 @@ export function eventLabels(item) {
     return item?.label ? [String(item.label)] : [];
 }
 
+// ---- Label styles (card option label_styles) ----
+//
+// label_styles:
+//   slightly cute: { color: "#DB2777", fill: light, icon: "mdi:heart-outline" }
+//   very cute: { color: "#DB2777", fill: solid }
+//
+// color is a hex color or [r, g, b]; fill is light (default), medium or
+// solid; icon is optional. Labels match case-insensitively.
+
+const FILL_ALPHA = { light: 0.18, medium: 0.35 };
+
+// [r, g, b] of "#rgb", "#rrggbb" or [r, g, b], or null
+function parseColor(color) {
+    if (Array.isArray(color) && color.length === 3 && color.every((c) => Number.isFinite(Number(c)))) {
+        return color.map((c) => Math.max(0, Math.min(255, Math.round(Number(c)))));
+    }
+    if (typeof color !== 'string') return null;
+    let hex = color.trim().replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.split('').map((x) => x + x).join('');
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+    const n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// White or near-black, whichever reads better on rgb
+function textColorOn([r, g, b]) {
+    const lin = (c) => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return luminance > 0.4 ? '#1f1f1f' : '#ffffff';
+}
+
+// label_styles as { lowercased label: { background, color, icon } }. Entries
+// without a valid color are dropped; an invalid icon is left out.
+export function normalizeLabelStyles(config) {
+    const result = {};
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return result;
+    for (const [label, style] of Object.entries(config)) {
+        const rgb = parseColor(style?.color);
+        if (!rgb) continue;
+        const fill = String(style.fill || 'light').toLowerCase();
+        const icon = typeof style.icon === 'string' && /^[a-z0-9-]+:[a-z0-9-]+$/i.test(style.icon) ? style.icon : '';
+        result[String(label).trim().toLowerCase()] = fill === 'solid'
+            ? { background: `rgb(${rgb.join(',')})`, color: textColorOn(rgb), icon }
+            : { background: `rgba(${rgb.join(',')},${FILL_ALPHA[fill] ?? FILL_ALPHA.light})`, color: '', icon };
+    }
+    return result;
+}
+
+// The style of label from normalizeLabelStyles, or null
+export function labelStyle(styles, label) {
+    if (!styles || label === null || label === undefined) return null;
+    const key = String(label).trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(styles, key) ? styles[key] : null;
+}
+
+// Inline CSS of a label chip: its label style, else the fallback background
+export function labelChipCss(style, fallbackBackground = '') {
+    if (style) return `background-color:${style.background};${style.color ? `color:${style.color};` : ''}`;
+    return fallbackBackground ? `background-color:${fallbackBackground};` : '';
+}
+
 // Whether an event has details worth showing: not null, '', {} or []
 export function hasDetails(details) {
     if (details === null || details === undefined || details === '') return false;
