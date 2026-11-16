@@ -411,11 +411,27 @@ export class BaseLLMVisionCard extends HTMLElement {
                         gap: 8px;
                         margin-bottom: 4px;
                     }
-                    /* Same width on both sides of the title keeps it centered */
+                    /* Same width on both sides of the title keeps it centered.
+                       All three are centered as boxes: the menu button is
+                       centered in its wrapper rather than set on a text line. */
                     .${headerRowClass} > .${closeBtnClass},
                     .${headerRowClass} > .${menuWrapperClass},
                     .${headerRowClass} > .${prefix}-menu-placeholder {
                         flex: 0 0 40px;
+                        height: 40px;
+                    }
+                    .${headerRowClass} > .${menuWrapperClass} {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .${headerRowClass} .${closeBtnClass},
+                    .${headerRowClass} .${menuBtnClass} {
+                        width: 40px;
+                        height: 40px;
+                        padding: 0;
+                        margin: 0;
+                        line-height: 0;
                     }
     
                     /* Title row: icon + title */
@@ -442,6 +458,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                         white-space: normal;
                         word-break: break-word;
                         margin: 0;
+                        line-height: 1.25;
                         font-family: var(--ha-font-family-heading, "Roboto");
                         text-align: center;
                     }

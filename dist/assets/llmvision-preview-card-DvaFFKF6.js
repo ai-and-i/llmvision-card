@@ -97,11 +97,27 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                         gap: 8px;
                         margin-bottom: 4px;
                     }
-                    /* Same width on both sides of the title keeps it centered */
+                    /* Same width on both sides of the title keeps it centered.
+                       All three are centered as boxes: the menu button is
+                       centered in its wrapper rather than set on a text line. */
                     .${T} > .${w},
                     .${T} > .${D},
                     .${T} > .${g}-menu-placeholder {
                         flex: 0 0 40px;
+                        height: 40px;
+                    }
+                    .${T} > .${D} {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .${T} .${w},
+                    .${T} .${O} {
+                        width: 40px;
+                        height: 40px;
+                        padding: 0;
+                        margin: 0;
+                        line-height: 0;
                     }
     
                     /* Title row: icon + title */
@@ -128,6 +144,7 @@ import{_ as e,b as t,c as n,d as r,f as i,g as a,h as o,i as s,l as c,m as l,n a
                         white-space: normal;
                         word-break: break-word;
                         margin: 0;
+                        line-height: 1.25;
                         font-family: var(--ha-font-family-heading, "Roboto");
                         text-align: center;
                     }
