@@ -88,9 +88,59 @@ function isPlain(value) {
     return value === null || typeof value !== 'object';
 }
 
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Text longer than this makes a column a "long" one, placed after the short
+// ones: "Species, Count, Age, Appearance" and "Level, Reason".
+const LONG_TEXT = 40;
+
+function isLong(value) {
+    return typeof value === 'string' && value.length > LONG_TEXT;
+}
+
+// The keys of rows, in first-seen order, short columns before long ones
+function columnsOf(rows) {
+    const keys = [];
+    for (const row of rows) {
+        for (const key of Object.keys(row)) {
+            if (!keys.includes(key)) keys.push(key);
+        }
+    }
+    const long = new Set(keys.filter((key) => rows.some((row) => isLong(row[key]))));
+    return [...keys.filter((key) => !long.has(key)), ...keys.filter((key) => long.has(key))];
+}
+
+function renderCell(value, depth) {
+    if (value === null || value === undefined || value === '') {
+        return '<span class="details-empty">–</span>';
+    }
+    if (Array.isArray(value) && value.length && value.every(isPlain)) {
+        return escapeHtml(value.join(', '));
+    }
+    return isPlain(value) ? escapeHtml(value) : renderDetails(value, depth + 1);
+}
+
+// rows as a table, one column per key. With rowNames, each row starts with
+// its name as a row header.
+function renderTable(rows, depth, rowNames = null) {
+    const columns = columnsOf(rows);
+    const head = `<tr>${rowNames ? '<td></td>' : ''}${columns
+        .map((key) => `<th scope="col">${escapeHtml(detailKey(key))}</th>`)
+        .join('')}</tr>`;
+    const body = rows
+        .map((row, i) => `<tr>${rowNames ? `<th scope="row">${escapeHtml(detailKey(rowNames[i]))}</th>` : ''}${columns
+            .map((key) => `<td>${renderCell(row[key], depth)}</td>`)
+            .join('')}</tr>`)
+        .join('');
+    return `<div class="details-table-wrap"><table class="details-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
 // An event's details (any JSON value, often the model's structured response)
-// as escaped HTML: top-level keys as headings, nested objects as key/value
-// rows, lists of plain values on one line, other lists as numbered entries.
+// as escaped HTML. Top-level keys become headings. A list of objects is a
+// table with a row per item; an object of objects is a table with a row per
+// key; any other object is a two-column name/value table.
 export function renderDetails(value, depth = 0) {
     if (value === null || value === undefined || value === '') {
         return '<span class="details-empty">–</span>';
@@ -101,14 +151,14 @@ export function renderDetails(value, depth = 0) {
     if (Array.isArray(value)) {
         if (!value.length) return '<span class="details-empty">None</span>';
         if (value.every(isPlain)) {
-            return `<span class="details-text">${value.map(escapeHtml).join(', ')}</span>`;
+            return `<span class="details-text">${escapeHtml(value.join(', '))}</span>`;
         }
-        if (value.length === 1) return renderDetails(value[0], depth + 1);
+        if (value.every(isRecord)) return renderTable(value, depth);
         return `<ol class="details-list">${value
             .map((item) => `<li>${renderDetails(item, depth + 1)}</li>`)
             .join('')}</ol>`;
     }
-    if (typeof value === 'object') {
+    if (isRecord(value)) {
         const entries = Object.entries(value);
         if (!entries.length) return '<span class="details-empty">–</span>';
         if (depth === 0) {
@@ -116,9 +166,12 @@ export function renderDetails(value, depth = 0) {
                 .map(([k, v]) => `<section class="details-section"><h4>${escapeHtml(detailKey(k))}</h4>${renderDetails(v, depth + 1)}</section>`)
                 .join('');
         }
-        return `<dl class="details-grid">${entries
-            .map(([k, v]) => `<dt>${escapeHtml(detailKey(k))}</dt><dd>${renderDetails(v, depth + 1)}</dd>`)
-            .join('')}</dl>`;
+        if (entries.every(([, v]) => isRecord(v) && Object.keys(v).length)) {
+            return renderTable(entries.map(([, v]) => v), depth, entries.map(([k]) => k));
+        }
+        return `<div class="details-table-wrap"><table class="details-table details-pairs"><tbody>${entries
+            .map(([k, v]) => `<tr><th scope="row">${escapeHtml(detailKey(k))}</th><td>${renderCell(v, depth)}</td></tr>`)
+            .join('')}</tbody></table></div>`;
     }
     return `<span class="details-text">${escapeHtml(value)}</span>`;
 }

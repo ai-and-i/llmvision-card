@@ -396,9 +396,10 @@ export class BaseLLMVisionCard extends HTMLElement {
                         color: var(--primary-text-color);
                         padding: 20px;
                         border-radius: var(--ha-card-border-radius, 25px);
-                        max-width: 500px;
-                        width: 100%;
-                        max-height: 80vh;
+                        max-width: 900px;
+                        width: calc(100vw - 48px);
+                        box-sizing: border-box;
+                        max-height: 90vh;
                         overflow-y: auto;
                         transform: scale(0.9);
                         transition: transform 0.2s ease;
@@ -531,17 +532,46 @@ export class BaseLLMVisionCard extends HTMLElement {
                         padding-bottom: 8px;
                         overflow-wrap: anywhere;
                     }
-                    .${prefix}-details-body .details-grid {
-                        display: grid;
-                        grid-template-columns: minmax(70px, max-content) 1fr;
-                        gap: 4px 12px;
-                        margin: 0;
+                    .${prefix}-details-body .details-table-wrap {
+                        overflow-x: auto;
                     }
-                    .${prefix}-details-body dt {
-                        font-weight: var(--ha-font-weight-medium, 500);
+                    .${prefix}-details-body .details-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: inherit;
+                        overflow-wrap: normal;
+                    }
+                    .${prefix}-details-body .details-table th,
+                    .${prefix}-details-body .details-table td {
+                        text-align: left;
+                        vertical-align: top;
+                        padding: 6px 10px;
+                        border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+                    }
+                    .${prefix}-details-body .details-table td {
                         color: var(--primary-text-color);
                     }
-                    .${prefix}-details-body dd { margin: 0; min-width: 0; }
+                    .${prefix}-details-body .details-table thead th {
+                        font-weight: var(--ha-font-weight-medium, 500);
+                        font-size: 0.9em;
+                        color: var(--secondary-text-color);
+                        white-space: nowrap;
+                    }
+                    .${prefix}-details-body .details-table thead tr {
+                        background: var(--table-header-background-color, rgba(127,127,127,0.08));
+                    }
+                    .${prefix}-details-body .details-table tbody th {
+                        font-weight: var(--ha-font-weight-medium, 500);
+                        color: var(--primary-text-color);
+                        white-space: nowrap;
+                        width: 1%;
+                    }
+                    .${prefix}-details-body .details-table tbody tr:last-child > * {
+                        border-bottom: none;
+                    }
+                    .${prefix}-details-body .details-table .details-table-wrap {
+                        margin: -2px 0;
+                    }
                     .${prefix}-details-body .details-list {
                         margin: 0;
                         padding-left: 1.2em;
@@ -625,6 +655,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                     @media (max-width: 768px) {
                         .${contentClass} {
                             max-width: 100%;
+                            width: 100%;
                             max-height: 100%;
                             padding: 15px;
                             border-radius: 0;
