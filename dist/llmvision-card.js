@@ -65,18 +65,16 @@ import{S as e,b as t,c as n,g as r,h as i,i as a,l as o,m as s,n as c,o as l,t a
                     .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);line-height:1.3;margin:0;flex-grow:1;color:var(--primary-text-color);overflow-wrap:anywhere;}
                     .event-container p{font-weight:var(--ha-font-weight-normal,400);font-size:var(--ha-font-size-s,12px);margin:0;flex-grow:1;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
-                    .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+                    .title-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+                    .title-icon ha-icon{--mdc-icon-size:12px;display:flex;}
                     .event-details{flex-grow:1;min-width:0;padding:4px 0;}
                     .event-labels{display:flex;gap:4px;margin-top:4px;overflow:hidden;}
                     .event-label{flex-shrink:0;font-size:var(--ha-font-size-xs,11px);line-height:16px;padding:0 6px;border-radius:8px;color:var(--primary-text-color);white-space:nowrap;text-transform:capitalize;}
                 </style>
             `,this.content=this.querySelector(`.card-content`);else{let e=this.querySelector(`.card-header`);e&&(this.header===``?e.style.display=`none`:(e.style.display=``,e.textContent=this.header))}this._loadAndRender(e)}async _loadAndRender(e){let t=await this.fetchEvents(e,{limit:this.number_of_events,days:this.number_of_days,cameras:this.camera_filters,categories:this.category_filters,includeNoActivity:!this.filter_false_positives});if(!t)return;let n=this._hashState({...t,category_filters:this.category_filters,camera_filters:this.camera_filters,number_of_events:this.number_of_events,number_of_days:this.number_of_days,time_format:this.time_format,filter_false_positives:this.filter_false_positives,show_labels:this.show_labels,label_styles:this.label_styles});if(n!==this._lastEventHash){if(this._lastEventHash=n,!t.length){this.content.innerHTML=``;let e;e=this.category_filters.length?`noEventsCategory`:this.camera_filters.length?`noEventsCamera`:this.number_of_days?`noEventsHours`:`noEvents`;let t=p(e,this.language)||`No events found.`;e===`noEventsHours`&&(t=t.replace(`{hours}`,this.number_of_days)),this.content.innerHTML=`<div class="event-container empty-state"><h3>${t}</h3></div>`;return}this._render(t,e)}}_render(e,t){this.content.innerHTML=``;let a=``;e.forEach((e,s)=>{let c=new Date(e.startTime),l=this.formatDateLabel(c),u=this.formatTime(c);if(l!==a){let e=document.createElement(`div`);e.classList.add(`date-header`),e.innerHTML=`<h2>${l}</h2>`,this.content.appendChild(e),a=l}let{icon:f,color:p}=d(e.category,e.label);(e.category===void 0||e.category===``)&&this.default_icon&&(f=this.default_icon);let m=this.computeColors(e.category,p),h=this.show_labels?o(e).map(e=>`<span class="event-label" style="${i(r(this.label_styles,e),m.bgColorRgba)}">${n(e)}</span>`).join(``):``,g=document.createElement(`div`);g.classList.add(`event-container`),g.innerHTML=`
                 <img alt="Key frame ${s+1}" style="display:none;" onerror="this.style.display='none'">
-                <div class="icon-container" style="background-color:${m.bgColorRgba};">
-                    <ha-icon icon="${f}" style="color:${m.iconColorRgba};"></ha-icon>
-                </div>
                 <div class="event-details">
-                    <h3>${n(e.title)}</h3>
+                    <h3><span class="title-icon" style="background-color:${m.bgColorRgba};"><ha-icon icon="${f}" style="color:${m.iconColorRgba};"></ha-icon></span>${n(e.title)}</h3>
                     <p>${n(e.cameraName?`${u} • ${e.cameraName}`:u)}</p>
                     ${h?`<div class="event-labels">${h}</div>`:``}
                 </div>

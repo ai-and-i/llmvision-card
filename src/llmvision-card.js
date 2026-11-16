@@ -225,7 +225,8 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);line-height:1.3;margin:0;flex-grow:1;color:var(--primary-text-color);overflow-wrap:anywhere;}
                     .event-container p{font-weight:var(--ha-font-weight-normal,400);font-size:var(--ha-font-size-s,12px);margin:0;flex-grow:1;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
-                    .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+                    .title-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+                    .title-icon ha-icon{--mdc-icon-size:12px;display:flex;}
                     .event-details{flex-grow:1;min-width:0;padding:4px 0;}
                     .event-labels{display:flex;gap:4px;margin-top:4px;overflow:hidden;}
                     .event-label{flex-shrink:0;font-size:var(--ha-font-size-xs,11px);line-height:16px;padding:0 6px;border-radius:8px;color:var(--primary-text-color);white-space:nowrap;text-transform:capitalize;}
@@ -313,11 +314,8 @@ class LLMVisionCard extends BaseLLMVisionCard {
             container.classList.add('event-container');
             container.innerHTML = `
                 <img alt="Key frame ${idx + 1}" style="display:none;" onerror="this.style.display='none'">
-                <div class="icon-container" style="background-color:${colorsComputed.bgColorRgba};">
-                    <ha-icon icon="${icon}" style="color:${colorsComputed.iconColorRgba};"></ha-icon>
-                </div>
                 <div class="event-details">
-                    <h3>${escapeHtml(d.title)}</h3>
+                    <h3><span class="title-icon" style="background-color:${colorsComputed.bgColorRgba};"><ha-icon icon="${icon}" style="color:${colorsComputed.iconColorRgba};"></ha-icon></span>${escapeHtml(d.title)}</h3>
                     <p>${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
                     ${labelChips ? `<div class="event-labels">${labelChips}</div>` : ''}
                 </div>
