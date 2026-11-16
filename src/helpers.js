@@ -66,6 +66,63 @@ export function eventLabels(item) {
     return item?.label ? [String(item.label)] : [];
 }
 
+// Whether an event has details worth showing: not null, '', {} or []
+export function hasDetails(details) {
+    if (details === null || details === undefined || details === '') return false;
+    if (Array.isArray(details)) return details.length > 0;
+    if (typeof details === 'object') return Object.keys(details).length > 0;
+    return true;
+}
+
+// "trouble_level" or "troubleLevel" -> "Trouble level"
+function detailKey(key) {
+    const text = String(key)
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .trim()
+        .toLowerCase();
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function isPlain(value) {
+    return value === null || typeof value !== 'object';
+}
+
+// An event's details (any JSON value, often the model's structured response)
+// as escaped HTML: top-level keys as headings, nested objects as key/value
+// rows, lists of plain values on one line, other lists as numbered entries.
+export function renderDetails(value, depth = 0) {
+    if (value === null || value === undefined || value === '') {
+        return '<span class="details-empty">–</span>';
+    }
+    if (depth > 6) {
+        return `<span class="details-text">${escapeHtml(JSON.stringify(value))}</span>`;
+    }
+    if (Array.isArray(value)) {
+        if (!value.length) return '<span class="details-empty">None</span>';
+        if (value.every(isPlain)) {
+            return `<span class="details-text">${value.map(escapeHtml).join(', ')}</span>`;
+        }
+        if (value.length === 1) return renderDetails(value[0], depth + 1);
+        return `<ol class="details-list">${value
+            .map((item) => `<li>${renderDetails(item, depth + 1)}</li>`)
+            .join('')}</ol>`;
+    }
+    if (typeof value === 'object') {
+        const entries = Object.entries(value);
+        if (!entries.length) return '<span class="details-empty">–</span>';
+        if (depth === 0) {
+            return entries
+                .map(([k, v]) => `<section class="details-section"><h4>${escapeHtml(detailKey(k))}</h4>${renderDetails(v, depth + 1)}</section>`)
+                .join('');
+        }
+        return `<dl class="details-grid">${entries
+            .map(([k, v]) => `<dt>${escapeHtml(detailKey(k))}</dt><dd>${renderDetails(v, depth + 1)}</dd>`)
+            .join('')}</dl>`;
+    }
+    return `<span class="details-text">${escapeHtml(value)}</span>`;
+}
+
 const translations = {
     bg: bg.text,
     ca: ca.text,

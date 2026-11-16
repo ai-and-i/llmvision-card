@@ -1,5 +1,5 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba, escapeHtml, eventLabels, getLabelIcon } from './helpers.js';
+import { translate, hexToRgba, escapeHtml, eventLabels, getLabelIcon, hasDetails, renderDetails } from './helpers.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -117,6 +117,8 @@ export class BaseLLMVisionCard extends HTMLElement {
                     labels,
                     keyFrame: (item.key_frame || ''),
                     clip: (item.clip || ''),
+                    // Extra structured data (any JSON value), or null
+                    details: item.details ?? null,
                     cameraName: cameraFriendlyName,
                     startTime: item.start || null,
                     endTime: item.end || null,
@@ -251,6 +253,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                 category: d.category,
                 label: d.label,
                 labels: d.labels,
+                details: d.details,
                 icon: icon,
                 prefix: 'popup',
                 eventId: d.id
@@ -278,7 +281,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         return { bgColorRgba, iconColorRgba };
     }
 
-    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, icon, prefix, eventId }, hassArg) {
+    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, details, icon, prefix, eventId }, hassArg) {
         const hass = hassArg || this.hass;
         const formattedTime = this.formatDateTimeFull(startTime);
         const secondaryText = cameraName ? `${formattedTime} • ${cameraName}` : formattedTime;
@@ -359,6 +362,11 @@ export class BaseLLMVisionCard extends HTMLElement {
                     </div>
                     ${mediaBlock}
                     <p class="summary">${escapeHtml(summary)}</p>
+                    ${hasDetails(details) ? `
+                    <details class="${prefix}-details">
+                        <summary>${escapeHtml(translate('additional_details', this.language) || 'Additional details')}</summary>
+                        <div class="${prefix}-details-body">${renderDetails(details)}</div>
+                    </details>` : ''}
                 </div>
             `;
 
@@ -490,6 +498,64 @@ export class BaseLLMVisionCard extends HTMLElement {
                         font-family: var(--ha-font-family-body, "Roboto");
                     }
     
+                    /* Additional details, collapsed until opened */
+                    .${prefix}-details {
+                        margin-top: 4px;
+                        border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+                        font-family: var(--ha-font-family-body, "Roboto");
+                    }
+                    .${prefix}-details > summary {
+                        cursor: pointer;
+                        padding: 10px 0;
+                        font-weight: var(--ha-font-weight-medium, 500);
+                        color: var(--primary-text-color);
+                        list-style: none;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .${prefix}-details > summary::-webkit-details-marker { display: none; }
+                    .${prefix}-details > summary::before {
+                        content: '';
+                        border-style: solid;
+                        border-width: 0.35em 0.35em 0 0.35em;
+                        border-color: currentColor transparent transparent transparent;
+                        transform: rotate(-90deg);
+                        transition: transform 0.2s;
+                    }
+                    .${prefix}-details[open] > summary::before { transform: rotate(0); }
+                    .${prefix}-details-body {
+                        color: var(--secondary-text-color);
+                        font-size: var(--ha-font-size-m, 14px);
+                        line-height: 1.4;
+                        padding-bottom: 8px;
+                        overflow-wrap: anywhere;
+                    }
+                    .${prefix}-details-body .details-grid {
+                        display: grid;
+                        grid-template-columns: minmax(70px, max-content) 1fr;
+                        gap: 4px 12px;
+                        margin: 0;
+                    }
+                    .${prefix}-details-body dt {
+                        font-weight: var(--ha-font-weight-medium, 500);
+                        color: var(--primary-text-color);
+                    }
+                    .${prefix}-details-body dd { margin: 0; min-width: 0; }
+                    .${prefix}-details-body .details-list {
+                        margin: 0;
+                        padding-left: 1.2em;
+                    }
+                    .${prefix}-details-body .details-list > li + li { margin-top: 6px; }
+                    .${prefix}-details-body .details-empty { opacity: 0.6; }
+                    .${prefix}-details-body .details-section + .details-section { margin-top: 12px; }
+                    .${prefix}-details-body h4 {
+                        margin: 0 0 4px;
+                        font-size: inherit;
+                        font-weight: var(--ha-font-weight-bold, 600);
+                        color: var(--primary-text-color);
+                    }
+
                     /* Buttons */
                     .${closeBtnClass}, .${menuBtnClass} {
                         background: none;
