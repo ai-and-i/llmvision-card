@@ -113,7 +113,20 @@ function saveShown(shown) {
 }
 
 export const boxOverlayCss = `
-    .llmvision-boxes-media { position: relative; }
+    /* media clips the stage (the clip), which zooms and pans. The boxes are
+       drawn unzoomed on top at the zoomed positions, so lines and names stay
+       sharp and keep their size. */
+    .llmvision-boxes-media {
+        position: relative; overflow: hidden; margin-top: 10px;
+        --llmvision-video-radius: calc(var(--ha-card-border-radius, 25px) - 10px);
+        border-radius: var(--llmvision-video-radius);
+    }
+    /* Touches on the clip are ours (pinch, pan): with pan-x pan-y a browser
+       may take a two-finger move for a scroll and cancel the pinch */
+    .llmvision-boxes-stage { position: relative; transform-origin: 0 0; touch-action: none; }
+    .llmvision-boxes-media .llmvision-boxes-stage > video { display: block; margin: 0; border-radius: 0; cursor: pointer; }
+    .llmvision-boxes-zoomed .llmvision-boxes-stage { touch-action: none; }
+    .llmvision-boxes-zoomed .llmvision-boxes-stage > video { cursor: grab; }
     .llmvision-boxes-layer { position: absolute; pointer-events: none; overflow: hidden; }
     .llmvision-boxes-layer[hidden] { display: none; }
     .llmvision-box {
@@ -126,19 +139,91 @@ export const boxOverlayCss = `
         white-space: nowrap; text-transform: capitalize;
     }
     .llmvision-box.below > span { bottom: auto; top: 100%; border-radius: 0 3px 3px 3px; }
-    .llmvision-boxes-toggle {
-        position: absolute; top: 18px; right: 8px; width: 36px; height: 36px; padding: 0;
-        display: flex; align-items: center; justify-content: center; border: none; border-radius: 50%;
-        background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; --mdc-icon-size: 20px;
+
+    /* Our controls, along the bottom of the clip. They fade while it plays
+       and nothing moves over it. */
+    .llmvision-boxes-controls {
+        position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box;
+        display: flex; align-items: center; gap: 2px; padding: 6px 8px;
+        /* No tint over the clip: a shadow keeps icons and text readable on
+           bright footage */
+        color: #fff; font: 500 13px/1 var(--ha-font-family-body, Roboto, sans-serif);
+        text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.8);
+        filter: drop-shadow(0 0 2px rgba(0,0,0,0.75));
+        transition: opacity 0.25s;
     }
-    .llmvision-boxes-toggle[aria-pressed="false"] { color: rgba(255,255,255,0.6); }
+    .llmvision-boxes-idle > .llmvision-boxes-controls { opacity: 0; pointer-events: none; }
+    .llmvision-boxes-idle, .llmvision-boxes-idle > video { cursor: none; }
+    .llmvision-boxes-controls button {
+        flex: none; width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;
+        border: none; border-radius: 50%; background: transparent; color: #fff; cursor: pointer; --mdc-icon-size: 22px;
+    }
+    .llmvision-boxes-controls button:hover { background: rgba(255,255,255,0.15); }
+    .llmvision-boxes-controls button[aria-pressed="false"] { color: rgba(255,255,255,0.55); }
+    .llmvision-boxes-controls .llmvision-boxes-zoom {
+        width: auto; min-width: 40px; padding: 0 8px; border-radius: 20px; font: inherit; font-weight: 600;
+        background: rgba(255,255,255,0.18);
+    }
+    .llmvision-boxes-controls .llmvision-boxes-zoom[hidden] { display: none; }
+    .llmvision-boxes-seek {
+        flex: 1; min-width: 40px; margin: 0 8px; cursor: pointer; accent-color: var(--primary-color, #03a9f4);
+    }
+    .llmvision-boxes-time { flex: none; padding: 0 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+    /* Full screen with the boxes: the Fullscreen API on the clip and its
+       boxes where the browser has it for any element, else (iPhone) the
+       clip and boxes fixed over the whole page. The clip is centered on the
+       whole screen; the controls keep clear of the notch, the status bar
+       and the home indicator (safe areas). The rules
+       are separate because a browser drops a whole rule with a selector it
+       doesn't know. */
+    .llmvision-boxes-media.llmvision-boxes-expanded {
+        position: fixed; inset: 0; z-index: 10000; margin: 0; border-radius: 0; background: #000;
+        overscroll-behavior: contain;
+    }
+    .llmvision-boxes-media:fullscreen { background: #000; border-radius: 0; }
+    .llmvision-boxes-media:-webkit-full-screen { background: #000; border-radius: 0; }
+    .llmvision-boxes-expanded > .llmvision-boxes-stage { width: 100%; height: 100%; touch-action: none; }
+    .llmvision-boxes-media:fullscreen > .llmvision-boxes-stage { width: 100%; height: 100%; touch-action: none; }
+    .llmvision-boxes-media:-webkit-full-screen > .llmvision-boxes-stage { width: 100%; height: 100%; touch-action: none; }
+    .llmvision-boxes-expanded .llmvision-boxes-stage > video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+    .llmvision-boxes-media:fullscreen .llmvision-boxes-stage > video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+    .llmvision-boxes-media:-webkit-full-screen .llmvision-boxes-stage > video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+    .llmvision-boxes-expanded > .llmvision-boxes-controls {
+        border-radius: 0; left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px);
+        bottom: env(safe-area-inset-bottom, 0px); padding-bottom: 10px;
+    }
+    .llmvision-boxes-media:fullscreen > .llmvision-boxes-controls { border-radius: 0; padding-bottom: 12px; }
+    .llmvision-boxes-media:-webkit-full-screen > .llmvision-boxes-controls { border-radius: 0; padding-bottom: 12px; }
+    /* Touch screens: also keep off the bottom edge when the page reports no
+       safe area, where a swipe is a system gesture */
+    @media (pointer: coarse) {
+        .llmvision-boxes-expanded > .llmvision-boxes-controls { bottom: max(env(safe-area-inset-bottom, 0px), 24px); }
+    }
 `;
 
+// The element in full screen (Fullscreen API), if any
+function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+const icon = (name) => `<ha-icon icon="${name}"></ha-icon>`;
+
+// "1:05" for 65.3 seconds
+function clock(seconds) {
+    const s = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 // Draws the tracks over video, which must be inside media (a positioned
-// element), with a button to show or hide them. Stops when video leaves the
-// page.
+// element), and replaces the browser's controls with ours: play, seek,
+// mute, show or hide the boxes, and full screen. The browser's own controls
+// can't show the boxes (iPhone plays in its own player, desktop browsers
+// put only the video in full screen or picture-in-picture) and put buttons
+// where they clash with ours and with system gestures. Stops when video
+// leaves the page.
 export function attachBoxOverlay(media, video, { rate, tracks }) {
-    if (!media || !video || !tracks.length) return;
+    if (!media || !video || !tracks.length) return null;
     const step = 1 / rate;
     const layer = document.createElement('div');
     layer.className = 'llmvision-boxes-layer';
@@ -154,39 +239,159 @@ export function attachBoxOverlay(media, video, { rate, tracks }) {
         layer.appendChild(el);
         return el;
     });
-    const button = document.createElement('button');
-    button.className = 'llmvision-boxes-toggle';
-    button.innerHTML = '<ha-icon icon="mdi:vector-square"></ha-icon>';
-    media.append(layer, button);
+
+    video.controls = false;
+    video.removeAttribute('controls');
+    video.disablePictureInPicture = true;
+    video.setAttribute('disablepictureinpicture', '');
+    video.setAttribute('disableremoteplayback', '');
+
+    const control = (className, iconName) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = className;
+        if (iconName) b.innerHTML = icon(iconName);
+        return b;
+    };
+    const label = (b, text) => {
+        b.title = text;
+        b.setAttribute('aria-label', text);
+    };
+    const bar = document.createElement('div');
+    bar.className = 'llmvision-boxes-controls';
+    const playButton = control('llmvision-boxes-play');
+    const time = document.createElement('span');
+    time.className = 'llmvision-boxes-time';
+    const seek = document.createElement('input');
+    seek.type = 'range';
+    seek.className = 'llmvision-boxes-seek';
+    seek.min = '0';
+    seek.max = '0';
+    seek.step = 'any';
+    seek.value = '0';
+    seek.setAttribute('aria-label', 'Seek');
+    const muteButton = control('llmvision-boxes-mute');
+    const button = control('llmvision-boxes-toggle', 'mdi:vector-square');
+    const fsButton = control('llmvision-boxes-fullscreen');
+    const zoomButton = control('llmvision-boxes-zoom');
+    zoomButton.hidden = true;
+    bar.append(playButton, time, seek, zoomButton, muteButton, button, fsButton);
+    // The stage holds the clip and is what zooms; the boxes are drawn on a
+    // layer over it at the zoomed positions
+    const stage = document.createElement('div');
+    stage.className = 'llmvision-boxes-stage';
+    video.before(stage);
+    stage.append(video);
+    media.append(layer, bar);
+    // Clicks on the controls are not clicks on the video
+    ['click', 'dblclick', 'pointerdown'].forEach((t) => bar.addEventListener(t, (e) => e.stopPropagation()));
 
     let shown = readShown();
     const setShown = (value) => {
         shown = value;
         layer.hidden = !shown;
         button.setAttribute('aria-pressed', String(shown));
-        button.title = shown ? 'Hide boxes' : 'Show boxes';
+        label(button, shown ? 'Hide boxes' : 'Show boxes');
         draw();
     };
-    button.addEventListener('click', (e) => {
-        e.stopPropagation();
+    button.addEventListener('click', () => {
         setShown(!shown);
         saveShown(shown);
     });
 
+    // Play, seek and mute
+    let seeking = false;
+    const updatePlay = () => {
+        const paused = video.paused || video.ended;
+        playButton.innerHTML = icon(paused ? 'mdi:play' : 'mdi:pause');
+        label(playButton, paused ? 'Play' : 'Pause');
+    };
+    const updateTime = () => {
+        if (Number.isFinite(video.duration)) seek.max = String(video.duration);
+        if (!seeking) seek.value = String(video.currentTime);
+        time.textContent = `${clock(video.currentTime)} / ${clock(video.duration)}`;
+    };
+    const updateMute = () => {
+        muteButton.innerHTML = icon(video.muted ? 'mdi:volume-off' : 'mdi:volume-high');
+        label(muteButton, video.muted ? 'Unmute' : 'Mute');
+    };
+    const togglePlay = () => {
+        if (video.paused || video.ended) {
+            const playing = video.play();
+            if (playing && playing.catch) playing.catch(() => {});
+        } else {
+            video.pause();
+        }
+    };
+    playButton.addEventListener('click', togglePlay);
+    muteButton.addEventListener('click', () => {
+        video.muted = !video.muted;
+        updateMute();
+    });
+    seek.addEventListener('input', () => {
+        seeking = true;
+        video.currentTime = Number(seek.value);
+        updateTime();
+        draw();
+    });
+    seek.addEventListener('change', () => { seeking = false; });
+    ['play', 'pause', 'ended'].forEach((t) => video.addEventListener(t, () => { updatePlay(); wake(); }));
+    ['timeupdate', 'durationchange', 'loadedmetadata'].forEach((t) => video.addEventListener(t, updateTime));
+    video.addEventListener('volumechange', updateMute);
+
+    // The controls fade 2.5 s after the last movement while the clip plays
+    let idleTimer = null;
+    const wake = () => {
+        media.classList.remove('llmvision-boxes-idle');
+        clearTimeout(idleTimer);
+        if (!video.paused && !video.ended) {
+            idleTimer = setTimeout(() => media.classList.add('llmvision-boxes-idle'), 2500);
+        }
+    };
+    ['pointermove', 'pointerdown', 'keydown'].forEach((t) => media.addEventListener(t, wake));
+
+    // A tap or click on the video plays or pauses it; on a touch screen the
+    // first tap after the controls faded only brings them back. A
+    // double-click goes full screen, so a single click waits to see whether
+    // a second one follows.
+    let pointerType = 'mouse';
+    let idleAtPointer = false;
+    let clickTimer = null;
+    video.addEventListener('pointerdown', (e) => {
+        pointerType = e.pointerType || 'mouse';
+        idleAtPointer = media.classList.contains('llmvision-boxes-idle');
+    });
+    video.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (gestured) {
+            gestured = false;
+            return;
+        }
+        if (idleAtPointer && pointerType === 'touch') return;
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(togglePlay, 250);
+    });
+
     function draw() {
         if (!shown || !video.videoWidth) return;
-        // The picture inside the element: object-fit contain leaves bars
+        // The layer covers the stage's (unzoomed) box
+        Object.assign(layer.style, {
+            left: `${stage.offsetLeft}px`,
+            top: `${stage.offsetTop}px`,
+            width: `${stage.offsetWidth}px`,
+            height: `${stage.offsetHeight}px`,
+        });
+        // The picture inside the video element: object-fit contain leaves bars
         const ew = video.clientWidth;
         const eh = video.clientHeight;
         const scale = Math.min(ew / video.videoWidth, eh / video.videoHeight);
         const w = video.videoWidth * scale;
         const h = video.videoHeight * scale;
-        Object.assign(layer.style, {
-            left: `${video.offsetLeft + (ew - w) / 2}px`,
-            top: `${video.offsetTop + (eh - h) / 2}px`,
-            width: `${w}px`,
-            height: `${h}px`,
-        });
+        const left = video.offsetLeft + (ew - w) / 2;
+        const top = video.offsetTop + (eh - h) / 2;
+        // A picture point (0-1000) on the layer, zoomed and panned
+        const x = (v) => tx + (left + (v / 1000) * w) * zoom;
+        const y = (v) => ty + (top + (v / 1000) * h) * zoom;
         tracks.forEach((track, i) => {
             const box = boxAt(track, video.currentTime, step);
             const el = els[i];
@@ -194,20 +399,221 @@ export function attachBoxOverlay(media, video, { rate, tracks }) {
             if (!box) return;
             const [ymin, xmin, ymax, xmax] = box;
             Object.assign(el.style, {
-                left: `${(xmin / 1000) * w}px`,
-                top: `${(ymin / 1000) * h}px`,
-                width: `${((xmax - xmin) / 1000) * w}px`,
-                height: `${((ymax - ymin) / 1000) * h}px`,
+                left: `${x(xmin)}px`,
+                top: `${y(ymin)}px`,
+                width: `${x(xmax) - x(xmin)}px`,
+                height: `${y(ymax) - y(ymin)}px`,
             });
-            // Keep the name inside the picture for boxes at the top edge
-            el.classList.toggle('below', (ymin / 1000) * h < 18);
+            // Keep the name in view for boxes at the top edge
+            el.classList.toggle('below', y(ymin) < 18);
         });
     }
+
+    // Zoom and pan: pinch with two fingers (or a trackpad, or Ctrl + wheel;
+    // any wheel in full screen), drag with one finger or the mouse while
+    // zoomed. The stage is scaled from its top left corner and kept covering
+    // its own box, so no empty space shows at the edges.
+    const MAX_ZOOM = 8;
+    let zoom = 1;
+    let tx = 0;
+    let ty = 0;
+    let gestured = false;
+    const applyZoom = () => {
+        const w = stage.offsetWidth;
+        const h = stage.offsetHeight;
+        zoom = Math.min(MAX_ZOOM, Math.max(1, zoom));
+        if (zoom < 1.02) {
+            zoom = 1;
+            tx = 0;
+            ty = 0;
+        }
+        tx = Math.min(0, Math.max(w * (1 - zoom), tx));
+        ty = Math.min(0, Math.max(h * (1 - zoom), ty));
+        stage.style.transform = zoom === 1 ? '' : `translate(${tx}px, ${ty}px) scale(${zoom})`;
+        media.classList.toggle('llmvision-boxes-zoomed', zoom > 1);
+        zoomButton.hidden = zoom === 1;
+        zoomButton.textContent = `${zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}×`;
+        label(zoomButton, 'Reset zoom');
+        draw();
+    };
+    const resetZoom = () => {
+        zoom = 1;
+        applyZoom();
+    };
+    zoomButton.addEventListener('click', resetZoom);
+    // A client point in the stage's own (unzoomed) coordinates
+    const origin = () => {
+        const r = media.getBoundingClientRect();
+        return [r.left + media.clientLeft + stage.offsetLeft, r.top + media.clientTop + stage.offsetTop];
+    };
+    // Zoom to z keeping the stage point under client point p0 under p1
+    const zoomAround = (z, p0, p1, start) => {
+        const [ox, oy] = start.origin;
+        const cx = (p0[0] - ox - start.tx) / start.zoom;
+        const cy = (p0[1] - oy - start.ty) / start.zoom;
+        zoom = Math.min(MAX_ZOOM, Math.max(1, z));
+        tx = p1[0] - ox - cx * zoom;
+        ty = p1[1] - oy - cy * zoom;
+        applyZoom();
+    };
+    const pointers = new Map();
+    let gesture = null;
+    const startGesture = () => {
+        const points = [...pointers.values()];
+        const start = { origin: origin(), zoom, tx, ty };
+        if (points.length >= 2) {
+            const [a, b] = points;
+            gesture = { ...start, kind: 'pinch', distance: Math.hypot(a[0] - b[0], a[1] - b[1]), mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] };
+        } else if (points.length === 1 && zoom > 1) {
+            gesture = { ...start, kind: 'pan', point: points[0] };
+        } else {
+            gesture = points.length === 1 ? { ...start, kind: 'none', point: points[0] } : null;
+        }
+    };
+    stage.addEventListener('pointerdown', (e) => {
+        if (pointers.size === 0) gestured = false;
+        pointers.set(e.pointerId, [e.clientX, e.clientY]);
+        if (pointers.size >= 2 || zoom > 1) {
+            for (const id of pointers.keys()) {
+                try { stage.setPointerCapture(id); } catch (err) { /* already up */ }
+            }
+        }
+        startGesture();
+    });
+    stage.addEventListener('pointermove', (e) => {
+        if (!pointers.has(e.pointerId) || !gesture) return;
+        pointers.set(e.pointerId, [e.clientX, e.clientY]);
+        const points = [...pointers.values()];
+        if (gesture.kind === 'pinch' && points.length >= 2) {
+            const [a, b] = points;
+            const distance = Math.hypot(a[0] - b[0], a[1] - b[1]);
+            const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+            zoomAround(gesture.zoom * (distance / (gesture.distance || 1)), gesture.mid, mid, gesture);
+            gestured = true;
+            e.preventDefault();
+        } else if (gesture.kind === 'pan') {
+            const dx = e.clientX - gesture.point[0];
+            const dy = e.clientY - gesture.point[1];
+            if (Math.hypot(dx, dy) > 6) gestured = true;
+            tx = gesture.tx + dx;
+            ty = gesture.ty + dy;
+            applyZoom();
+            e.preventDefault();
+        } else if (gesture.kind === 'none' && Math.hypot(e.clientX - gesture.point[0], e.clientY - gesture.point[1]) > 10) {
+            gestured = true;
+        }
+    });
+    const endPointer = (e) => {
+        if (!pointers.delete(e.pointerId)) return;
+        startGesture();
+    };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => stage.addEventListener(t, endPointer));
+    stage.addEventListener('wheel', (e) => {
+        if (!e.ctrlKey && !isFull()) return;
+        e.preventDefault();
+        const p = [e.clientX, e.clientY];
+        zoomAround(zoom * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)), p, p, { origin: origin(), zoom, tx, ty });
+    }, { passive: false });
+    // Safari's own pinch zoom of the page
+    stage.addEventListener('gesturestart', (e) => e.preventDefault());
+
+    // Full screen: the Fullscreen API on media where it works, else media
+    // fixed over the page ("expanded"). Expanded, media moves to the page
+    // body, out of the popup (whose transform, scrolling and stacking would
+    // offset or clip a fixed element), and a placeholder keeps its place.
+    // Moving it within one task doesn't stop the clip.
+    let expanded = false;
+    let placeholder = null;
+    const isFull = () => expanded || fullscreenElement() === media;
+    const updateFsButton = () => {
+        const full = isFull();
+        fsButton.innerHTML = icon(full ? 'mdi:fullscreen-exit' : 'mdi:fullscreen');
+        label(fsButton, full ? 'Exit full screen' : 'Full screen');
+    };
+    const setExpanded = (value) => {
+        if (value === expanded) return;
+        expanded = value;
+        if (expanded) {
+            placeholder = document.createElement('div');
+            placeholder.style.height = `${media.offsetHeight}px`;
+            placeholder.style.marginTop = getComputedStyle(media).marginTop;
+            media.before(placeholder);
+            document.body.append(media);
+        } else if (placeholder) {
+            if (placeholder.isConnected) placeholder.replaceWith(media);
+            else media.remove();
+            placeholder = null;
+        }
+        media.classList.toggle('llmvision-boxes-expanded', expanded);
+        resetZoom();
+        updateFsButton();
+        draw();
+    };
+    const enterFull = async () => {
+        const request = media.requestFullscreen || media.webkitRequestFullscreen;
+        if (request) {
+            try {
+                const pending = request.call(media);
+                // Older WebKit returns nothing: give it a moment to switch
+                await (pending || new Promise((resolve) => setTimeout(resolve, 300)));
+            } catch (e) {
+                // not allowed here: expand instead
+            }
+            if (fullscreenElement() === media) return;
+        }
+        setExpanded(true);
+    };
+    const exitFull = () => {
+        if (fullscreenElement() === media) {
+            (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+        }
+        setExpanded(false);
+    };
+    const toggleFull = () => (isFull() ? exitFull() : enterFull());
+    fsButton.addEventListener('click', toggleFull);
+    video.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        clearTimeout(clickTimer);
+        toggleFull();
+    });
+    // iPhone's own player, should it still open, shows no boxes
+    video.addEventListener('webkitbeginfullscreen', () => {
+        setTimeout(() => {
+            try { video.webkitExitFullscreen(); } catch (e) { /* already out */ }
+            setExpanded(true);
+        }, 0);
+    });
+    const onFullscreenChange = () => {
+        if (!media.isConnected && !(placeholder && placeholder.isConnected)) {
+            ['fullscreenchange', 'webkitfullscreenchange'].forEach((t) => document.removeEventListener(t, onFullscreenChange));
+            document.removeEventListener('keydown', onKeydown, true);
+            return;
+        }
+        // A browser's own full screen of the video: ours instead
+        if (fullscreenElement() === video) {
+            (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+            setExpanded(true);
+        }
+        resetZoom();
+        updateFsButton();
+        draw();
+    };
+    // Escape leaves the expanded view before it closes the popup
+    const onKeydown = (e) => {
+        if (expanded && e.key === 'Escape') {
+            e.stopPropagation();
+            e.preventDefault();
+            setExpanded(false);
+        }
+    };
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach((t) => document.addEventListener(t, onFullscreenChange));
+    document.addEventListener('keydown', onKeydown, true);
 
     // Every presented frame while playing; on seeks and resizes otherwise
     const onFrame = () => {
         if (!video.isConnected) return;
         draw();
+        updateTime();
         if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(onFrame);
         else if (!video.paused) requestAnimationFrame(onFrame);
     };
@@ -215,8 +621,26 @@ export function attachBoxOverlay(media, video, { rate, tracks }) {
     else video.addEventListener('play', () => requestAnimationFrame(onFrame));
     ['loadedmetadata', 'seeked', 'timeupdate'].forEach((type) => video.addEventListener(type, draw));
     if (typeof ResizeObserver !== 'undefined') {
-        const observer = new ResizeObserver(() => (video.isConnected ? draw() : observer.disconnect()));
+        const observer = new ResizeObserver(() => {
+            if (!video.isConnected) return observer.disconnect();
+            applyZoom();
+            draw();
+        });
         observer.observe(video);
     }
+    updatePlay();
+    updateTime();
+    updateMute();
+    updateFsButton();
     setShown(shown);
+    // For the popup: put the clip back before the popup closes
+    return {
+        close() {
+            video.pause();
+            if (fullscreenElement() === media) {
+                (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+            }
+            setExpanded(false);
+        },
+    };
 }

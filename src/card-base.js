@@ -381,7 +381,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         const boxes = clip ? boxTracks(details, (l, c) => this.labelColor(l, c)) : { rate: 1, tracks: [] };
         // The clip when there is one, with the key frame as its poster
         const mediaBlock = clip
-            ? `<div class="llmvision-boxes-media"><video controls preload="metadata"${hasSnapshot ? ` poster="${escapeHtml(keyFrame)}"` : ''} src="${escapeHtml(clip)}"></video></div>`
+            ? `<div class="llmvision-boxes-media"><video controls playsinline webkit-playsinline preload="metadata"${hasSnapshot ? ` poster="${escapeHtml(keyFrame)}"` : ''} src="${escapeHtml(clip)}"></video></div>`
             : `<img src="${escapeHtml(keyFrame)}" alt="Event Snapshot" onerror="this.style.display='none'">`;
 
         const htmlBlock = `
@@ -466,6 +466,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                         box-sizing: border-box;
                         max-height: 90vh;
                         overflow-y: auto;
+                        overscroll-behavior: contain;
                         transform: scale(0.9);
                         transition: transform 0.2s ease;
                     }
@@ -1230,15 +1231,44 @@ export class BaseLLMVisionCard extends HTMLElement {
         }
 
         document.body.appendChild(wrapper);
+        this.lockPageScroll(wrapper);
         if (boxes.tracks.length) {
-            attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes);
+            wrapper._boxOverlay = attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes);
         }
         requestAnimationFrame(() => overlayEl.classList.add('show'));
     }
 
+    // The page under a popup doesn't scroll: wheel and touch scrolling over
+    // the popup used to move the timeline behind it. Locks nest, so the page
+    // scrolls again once the last popup closes.
+    lockPageScroll(wrapper) {
+        if (wrapper._scrollLocked) return;
+        wrapper._scrollLocked = true;
+        const root = document.documentElement;
+        window.__llmvisionScrollLocks = (window.__llmvisionScrollLocks || 0) + 1;
+        if (window.__llmvisionScrollLocks === 1) {
+            window.__llmvisionScrollRestore = [root.style.overflow, document.body.style.overflow];
+            root.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    unlockPageScroll(wrapper) {
+        if (!wrapper._scrollLocked) return;
+        wrapper._scrollLocked = false;
+        window.__llmvisionScrollLocks = Math.max(0, (window.__llmvisionScrollLocks || 1) - 1);
+        if (window.__llmvisionScrollLocks === 0 && window.__llmvisionScrollRestore) {
+            [document.documentElement.style.overflow, document.body.style.overflow] = window.__llmvisionScrollRestore;
+            window.__llmvisionScrollRestore = null;
+        }
+    }
+
     closePopup(wrapper, overlayClass, popstateHandler, escHandler) {
-        // Stop the clip now rather than when the fade-out ends
+        // The clip back from full screen, then stopped now rather than when
+        // the fade-out ends
+        wrapper._boxOverlay?.close();
         wrapper.querySelectorAll('video').forEach((video) => video.pause());
+        this.unlockPageScroll(wrapper);
         const overlay = wrapper.querySelector(`.${overlayClass}`);
         overlay.classList.remove('show');
         overlay.addEventListener('transitionend', () => {
