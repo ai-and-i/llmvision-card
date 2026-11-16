@@ -221,7 +221,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .event-container{display:flex;align-items:center;justify-content:flex-start;min-height:75px;gap:0 10px;cursor:pointer;margin-bottom:8px;min-width:0;overflow:hidden;}
                     .event-container.empty-state{height:100%;justify-content:center;align-items:center;text-align:center;cursor:default;margin-bottom:0;}
                     .event-container:last-child{margin-bottom:0;}
-                    .event-container img{width:min(160px,38%);height:auto;aspect-ratio:16/9;flex-shrink:0;border-radius:12px;object-fit:cover;}
+                    .event-container img{width:min(240px,50%);height:auto;aspect-ratio:16/9;flex-shrink:0;border-radius:12px;object-fit:cover;}
                     .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);line-height:1.3;margin:0;flex-grow:1;color:var(--primary-text-color);overflow-wrap:anywhere;}
                     .event-container p{font-weight:var(--ha-font-weight-normal,400);font-size:var(--ha-font-size-s,12px);margin:0;flex-grow:1;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
