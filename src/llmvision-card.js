@@ -1,4 +1,4 @@
-import { getIcon, translate, escapeHtml, eventLabels, labelStyle, labelChipCss } from './helpers.js';
+import { getIcon, translate, escapeHtml, eventLabels } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
 import { BaseLLMVisionCard } from './card-base.js';
@@ -225,11 +225,11 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);line-height:1.3;margin:0;flex-grow:1;color:var(--primary-text-color);overflow-wrap:anywhere;}
                     .event-container p{font-weight:var(--ha-font-weight-normal,400);font-size:var(--ha-font-size-s,12px);margin:0;flex-grow:1;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
-                    .title-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;margin-right:6px;vertical-align:middle;}
-                    .title-icon ha-icon{--mdc-icon-size:12px;display:flex;}
                     .event-details{flex-grow:1;min-width:0;padding:4px 0;}
-                    .event-labels{display:flex;gap:4px;margin-top:4px;overflow:hidden;}
-                    .event-label{flex-shrink:0;font-size:var(--ha-font-size-xs,11px);line-height:16px;padding:0 6px;border-radius:8px;color:var(--primary-text-color);white-space:nowrap;text-transform:capitalize;}
+                    .event-labels{display:flex;align-items:center;gap:4px;margin-top:4px;overflow:hidden;}
+                    .event-label{flex-shrink:0;display:inline-flex;align-items:center;gap:3px;font-size:var(--ha-font-size-xs,11px);line-height:18px;padding:0 6px 0 5px;border-radius:9px;background:var(--table-header-background-color,rgba(0,0,0,0.08));color:var(--primary-text-color);white-space:nowrap;}
+                    .event-label .text{text-transform:capitalize;}
+                    .event-label ha-icon{--mdc-icon-size:12px;display:flex;}
                 </style>
             `;
             this.content = this.querySelector('.card-content');
@@ -301,21 +301,20 @@ class LLMVisionCard extends BaseLLMVisionCard {
                 this.content.appendChild(header);
                 lastDate = dateLabel;
             }
-            const result = getIcon(d.category, d.label);
-            let { icon, color: defaultColor } = result;
+            // The popup is given the event's icon
+            let { icon } = getIcon(d.category, d.label);
             if ((d.category === undefined || d.category === '') && this.default_icon) {
                 icon = this.default_icon;
             }
-            const colorsComputed = this.computeColors(d.category, defaultColor);
             const labelChips = this.show_labels
-                ? eventLabels(d).map((l) => `<span class="event-label" style="${labelChipCss(labelStyle(this.label_styles, l), colorsComputed.bgColorRgba)}">${escapeHtml(l)}</span>`).join('')
+                ? this.labelBadgesHtml(d.category, eventLabels(d), 'event-label')
                 : '';
             const container = document.createElement('div');
             container.classList.add('event-container');
             container.innerHTML = `
                 <img alt="Key frame ${idx + 1}" style="display:none;" onerror="this.style.display='none'">
                 <div class="event-details">
-                    <h3><span class="title-icon" style="background-color:${colorsComputed.bgColorRgba};"><ha-icon icon="${icon}" style="color:${colorsComputed.iconColorRgba};"></ha-icon></span>${escapeHtml(d.title)}</h3>
+                    <h3>${escapeHtml(d.title)}</h3>
                     <p>${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
                     ${labelChips ? `<div class="event-labels">${labelChips}</div>` : ''}
                 </div>

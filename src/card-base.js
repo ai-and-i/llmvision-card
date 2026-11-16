@@ -1,5 +1,5 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba, escapeHtml, eventLabels, getLabelIcon, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
+import { translate, hexToRgba, escapeHtml, eventLabels, getIcon, getLabelIcon, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -321,6 +321,26 @@ export class BaseLLMVisionCard extends HTMLElement {
         return { bgColorRgba, iconColorRgba };
     }
 
+    // An event's category and label badges: the category (unless a label
+    // already says it) with its icon, then each label with its style's
+    // icon or its known icon. A label with a style has its colors; the others
+    // are tinted in the category color, with the icon in the full color.
+    // Used by the popup and the timeline list, with their own badge class.
+    labelBadgesHtml(category, labels, badgeClass) {
+        const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
+        const labelList = Array.isArray(labels) ? labels : [];
+        const showCategory = Boolean(category && !labelList.some((l) => normalize(l) === normalize(category)));
+        const { icon: categoryIcon, color: categoryColor } = getIcon(category, '');
+        const { bgColorRgba, iconColorRgba } = this.computeColors(category, categoryColor);
+        const badge = (icon, text, css, iconColor = '') => `<span class="${badgeClass}" style="${css}"><ha-icon icon="${escapeHtml(icon)}"${iconColor ? ` style="color:${iconColor};"` : ''}></ha-icon><span class="text">${escapeHtml(text)}</span></span>`;
+        const categoryBadge = (icon, text) => badge(icon, text, labelChipCss(null, bgColorRgba), iconColorRgba);
+        return (showCategory ? categoryBadge(categoryIcon, category) : '') + labelList.map((l) => {
+            const style = labelStyle(this.label_styles, l);
+            const icon = style?.icon || getLabelIcon(l, category);
+            return style ? badge(icon, l, labelChipCss(style)) : categoryBadge(icon, l);
+        }).join('');
+    }
+
     showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, details, icon, prefix, eventId }, hassArg) {
         const hass = hassArg || this.hass;
         const formattedTime = this.formatDateTimeFull(startTime);
@@ -339,10 +359,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         const menuThumbUpClass = `${prefix}-menu-item-thumbs-up`;
         const menuThumbDownClass = `${prefix}-menu-item-thumbs-down`;
 
-        const normalize = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
         const labelList = Array.isArray(labels) ? labels : (label ? [label] : []);
-        // No category badge when a label chip already says it
-        const shouldShowCategory = Boolean(category && !labelList.some((l) => normalize(l) === normalize(category)));
         const hasSnapshot = typeof keyFrame === 'string' ? keyFrame.trim().length > 0 : Boolean(keyFrame);
         // The clip when there is one, with the key frame as its poster
         const mediaBlock = clip
@@ -386,19 +403,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                         </div>
                         <div class="${prefix}-title-tertiary">
                             <div class="${prefix}-badges-row">
-                                ${shouldShowCategory ? `
-                                <span class="${prefix}-badge">
-                                    <ha-icon icon="mdi:label"></ha-icon>
-                                    <span class="text" style="text-transform: capitalize;">${escapeHtml(category)}</span>
-                                </span>` : ''}
-                                ${labelList.map((l) => {
-                                    const style = labelStyle(this.label_styles, l);
-                                    return `
-                                <span class="${prefix}-badge" style="${labelChipCss(style)}">
-                                    <ha-icon icon="${escapeHtml(style?.icon || getLabelIcon(l, category))}"></ha-icon>
-                                    <span class="text" style="text-transform: capitalize;">${escapeHtml(l)}</span>
-                                </span>`;
-                                }).join('')}
+                                ${this.labelBadgesHtml(category, labelList, `${prefix}-badge`)}
                             </div>
                         </div>
                     </div>
@@ -540,6 +545,9 @@ export class BaseLLMVisionCard extends HTMLElement {
                         color: var(--primary-text-color);
                         font-size: 0.9em;
                         line-height: 1;
+                    }
+                    .${prefix}-badge .text {
+                        text-transform: capitalize;
                     }
                     .${prefix}-badge ha-icon {
                         --mdc-icon-size: 18px;
