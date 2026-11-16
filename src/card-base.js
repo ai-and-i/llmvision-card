@@ -1232,7 +1232,8 @@ export class BaseLLMVisionCard extends HTMLElement {
 
         document.body.appendChild(wrapper);
         this.lockPageScroll(wrapper);
-        if (boxes.tracks.length) {
+        // Every clip gets the card's viewer, with boxes when the event has them
+        if (clip) {
             wrapper._boxOverlay = attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes);
         }
         requestAnimationFrame(() => overlayEl.classList.add('show'));

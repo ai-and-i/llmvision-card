@@ -164,7 +164,7 @@ export const boxOverlayCss = `
         width: auto; min-width: 40px; padding: 0 8px; border-radius: 20px; font: inherit; font-weight: 600;
         background: rgba(255,255,255,0.18);
     }
-    .llmvision-boxes-controls .llmvision-boxes-zoom[hidden] { display: none; }
+    .llmvision-boxes-controls button[hidden] { display: none; }
     .llmvision-boxes-seek {
         flex: 1; min-width: 40px; margin: 0 8px; cursor: pointer; accent-color: var(--primary-color, #03a9f4);
     }
@@ -215,15 +215,16 @@ function clock(seconds) {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-// Draws the tracks over video, which must be inside media (a positioned
-// element), and replaces the browser's controls with ours: play, seek,
-// mute, show or hide the boxes, and full screen. The browser's own controls
+// The clip viewer of the popup, for every clip: draws the tracks (if any)
+// over video, which must be inside media (a positioned element), and
+// replaces the browser's controls with ours: play, seek, zoom, mute, show
+// or hide the boxes (when there are any), and full screen. The browser's own controls
 // can't show the boxes (iPhone plays in its own player, desktop browsers
 // put only the video in full screen or picture-in-picture) and put buttons
 // where they clash with ours and with system gestures. Stops when video
 // leaves the page.
 export function attachBoxOverlay(media, video, { rate, tracks }) {
-    if (!media || !video || !tracks.length) return null;
+    if (!media || !video) return null;
     const step = 1 / rate;
     const layer = document.createElement('div');
     layer.className = 'llmvision-boxes-layer';
@@ -276,6 +277,8 @@ export function attachBoxOverlay(media, video, { rate, tracks }) {
     const zoomButton = control('llmvision-boxes-zoom');
     zoomButton.hidden = true;
     bar.append(playButton, time, seek, zoomButton, muteButton, button, fsButton);
+    // No boxes, no button for them
+    button.hidden = !tracks.length;
     // The stage holds the clip and is what zooms; the boxes are drawn on a
     // layer over it at the zoomed positions
     const stage = document.createElement('div');
