@@ -58,15 +58,15 @@ import{S as e,b as t,c as n,g as r,h as i,i as a,l as o,m as s,n as c,o as l,t a
                     /* The scrollable content area inside the card */
                     .card-content{padding:0;flex:1 1 auto;min-height:0;min-width:0;overflow:auto;overflow-x:hidden;}
 
-                    .event-container{display:flex;align-items:center;justify-content:flex-start;height:75px;cursor:pointer;margin-bottom:8px;min-width:0;overflow:hidden;}
+                    .event-container{display:flex;align-items:center;justify-content:flex-start;min-height:75px;gap:0 10px;cursor:pointer;margin-bottom:8px;min-width:0;overflow:hidden;}
                     .event-container.empty-state{height:100%;justify-content:center;align-items:center;text-align:center;cursor:default;margin-bottom:0;}
                     .event-container:last-child{margin-bottom:0;}
-                    .event-container img{height:100%;aspect-ratio:1/1;margin-left:auto;border-radius:12px;object-fit:cover;}
-                    .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);margin:0;flex-grow:1;color:var(--primary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                    .event-container img{width:75px;height:75px;flex-shrink:0;margin-left:auto;border-radius:12px;object-fit:cover;}
+                    .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);line-height:1.3;margin:0;flex-grow:1;color:var(--primary-text-color);overflow-wrap:anywhere;}
                     .event-container p{font-weight:var(--ha-font-weight-normal,400);font-size:var(--ha-font-size-s,12px);margin:0;flex-grow:1;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
-                    .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;}
-                    .event-details{flex-grow:1;min-width:0;}
+                    .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+                    .event-details{flex-grow:1;min-width:0;padding:4px 0;}
                     .event-labels{display:flex;gap:4px;margin-top:4px;overflow:hidden;}
                     .event-label{flex-shrink:0;font-size:var(--ha-font-size-xs,11px);line-height:16px;padding:0 6px;border-radius:8px;color:var(--primary-text-color);white-space:nowrap;text-transform:capitalize;}
                 </style>
