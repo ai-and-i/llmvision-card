@@ -18,6 +18,23 @@ function __logLLMVisionBadge(context) {
     }
 }
 
+// Name of a camera entity for display: its device's name when the device has
+// no other camera (e.g. "Back C Cam 3" for its "Back C Cam 3 Snapshot"
+// entity), else the entity's friendly name, else its entity ID.
+function cameraDisplayName(hass, entityId) {
+    if (!entityId) return '';
+    const entity = hass.states[entityId];
+    const friendlyName = entity?.attributes?.friendly_name || entityId;
+    const deviceId = hass.entities?.[entityId]?.device_id;
+    const device = deviceId ? hass.devices?.[deviceId] : undefined;
+    const deviceName = device ? (device.name_by_user || device.name) : '';
+    if (!deviceName) return entity ? friendlyName : '';
+    const cameras = Object.values(hass.entities || {}).filter(
+        (e) => e.device_id === deviceId && e.entity_id.startsWith('camera.')
+    );
+    return cameras.length === 1 ? deviceName : (entity ? friendlyName : '');
+}
+
 export class BaseLLMVisionCard extends HTMLElement {
     imageCache = new Map();
     _lastEventHash = null;
@@ -107,8 +124,7 @@ export class BaseLLMVisionCard extends HTMLElement {
 
             return items.map((item) => {
                 const cameraEntityId = item.camera_name || '';
-                const cameraEntity = cameraEntityId ? hass.states[cameraEntityId] : undefined;
-                const cameraFriendlyName = cameraEntity ? (cameraEntity.attributes?.friendly_name || cameraEntityId) : '';
+                const cameraFriendlyName = cameraDisplayName(hass, cameraEntityId);
                 const labels = eventLabels(item);
                 return {
                     title: item.title || '',

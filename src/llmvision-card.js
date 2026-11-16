@@ -227,7 +227,6 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
                     .icon-container{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;}
                     .event-details{flex-grow:1;min-width:0;}
-                    .clip-badge{--mdc-icon-size:14px;vertical-align:-2px;margin-right:4px;}
                     .event-labels{display:flex;gap:4px;margin-top:4px;overflow:hidden;}
                     .event-label{flex-shrink:0;font-size:var(--ha-font-size-xs,11px);line-height:16px;padding:0 6px;border-radius:8px;color:var(--primary-text-color);white-space:nowrap;text-transform:capitalize;}
                 </style>
@@ -318,7 +317,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
                 </div>
                 <div class="event-details">
                     <h3>${escapeHtml(d.title)}</h3>
-                    <p>${d.clip ? `<ha-icon class="clip-badge" icon="mdi:video-outline" title="${escapeHtml(translate('video', this.language) || 'Video')}"></ha-icon>` : ''}${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
+                    <p>${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
                     ${labelChips ? `<div class="event-labels">${labelChips}</div>` : ''}
                 </div>
                 <img alt="Key frame ${idx + 1}" style="display:none;" onerror="this.style.display='none'">
