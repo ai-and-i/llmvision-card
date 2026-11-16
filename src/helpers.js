@@ -32,13 +32,30 @@ function ownValue(obj, key) {
         : undefined;
 }
 
+// The icon of label among a category's known labels: the whole label, else its
+// words from last to first, since the last is usually the main one ("gray
+// squirrel", "domestic cat", "scrub jay").
+function knownLabelIcon(categoryData, label) {
+    const known = categoryData?.labels;
+    if (!known || typeof label !== 'string') return undefined;
+    const text = label.trim().toLowerCase();
+    const exact = ownValue(known, text);
+    if (exact) return exact;
+    const words = text.split(/[^a-z0-9]+/).filter(Boolean);
+    for (let i = words.length - 1; i >= 0; i--) {
+        const icon = ownValue(known, words[i]);
+        if (icon) return icon;
+    }
+    return undefined;
+}
+
 // Icon and color of an event: the icon of its label in its category, else the
 // category's icon, both in the category color. Generic without a known category.
 export function getIcon(category, label) {
     const categoryData = ownValue(labels, category);
     if (categoryData) {
         return {
-            icon: ownValue(categoryData.labels, label) || categoryData.icon,
+            icon: knownLabelIcon(categoryData, label) || categoryData.icon,
             color: categoryData.color,
         };
     }
@@ -48,10 +65,10 @@ export function getIcon(category, label) {
 // Icon of one label chip: the label's icon in the event's category, else in any
 // category, else a generic tag.
 export function getLabelIcon(label, category) {
-    const inCategory = ownValue(ownValue(labels, category)?.labels, label);
+    const inCategory = knownLabelIcon(ownValue(labels, category), label);
     if (inCategory) return inCategory;
     for (const categoryData of Object.values(labels)) {
-        const icon = ownValue(categoryData.labels, label);
+        const icon = knownLabelIcon(categoryData, label);
         if (icon) return icon;
     }
     return 'mdi:tag-outline';
