@@ -248,11 +248,7 @@ export class LLMVisionPreviewCard extends BaseLLMVisionCard {
         this.content.innerHTML = '';
         this.content.appendChild(container);
         this.resolveKeyFrame(hass, event.keyFrame).then(url => {
-            const img = container.querySelector('img');
-            if (img) {
-                img.src = url;
-                img.style.display = 'block';
-            }
+            this.showImageWhenLoaded(container.querySelector('img'), url, 'block');
         });
     }
 

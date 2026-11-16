@@ -250,6 +250,28 @@ export class BaseLLMVisionCard extends HTMLElement {
         return this.resolveMedia(hass, keyFrame);
     }
 
+    // Shows url in imgEl once it is fully downloaded and decoded. A key frame
+    // is a ~200 KB baseline JPEG; shown while loading, it is painted top to
+    // bottom, and Safari can leave it half painted (the rest blank) in a
+    // scrolled card. Retries once after a failed load, then gives up and
+    // leaves the image hidden.
+    showImageWhenLoaded(imgEl, url, display = '', attempt = 0) {
+        if (!imgEl || !url) return;
+        const loader = new Image();
+        loader.src = url;
+        const show = () => {
+            if (!imgEl.isConnected) return;
+            imgEl.src = url;
+            imgEl.style.display = display;
+        };
+        const decoded = typeof loader.decode === 'function'
+            ? loader.decode()
+            : new Promise((resolve, reject) => { loader.onload = resolve; loader.onerror = reject; });
+        decoded.then(show).catch(() => {
+            if (attempt < 1) setTimeout(() => this.showImageWhenLoaded(imgEl, url, display, attempt + 1), 1000);
+        });
+    }
+
     // '' when the clip can't be resolved, so that the popup shows the key frame
     resolveClip(hass, clip) {
         return this.resolveMedia(hass, clip, { fallback: '' });

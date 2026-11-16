@@ -326,9 +326,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
             container.addEventListener('click', () => this.openEventPopup(hass, d, icon));
             this.content.appendChild(container);
             this.resolveKeyFrame(hass, d.keyFrame).then(url => {
-                if (!url) return;
-                imgEl.src = url;
-                imgEl.style.display = '';
+                this.showImageWhenLoaded(imgEl, url);
             });
         });
     }
