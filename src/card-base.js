@@ -1,6 +1,6 @@
 import { VERSION } from "./version.js";
 import { translate, hexToRgba, escapeHtml, isLocalMedia, eventLabels, getIcon, getLabelIcon, labelCategory, solidColor, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
-import { boxTracks, withoutBoxes, attachBoxOverlay, boxOverlayCss } from './boxes.js';
+import { boxTracks, withoutBoxes, attachBoxOverlay, boxOverlayCss, keyFrameNumber } from './boxes.js';
 import { feedbackCss, feedbackHtml, attachFeedback } from './feedback.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
@@ -818,7 +818,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         }
         // Every clip gets the card's viewer, with boxes when the event has them
         if (clip) {
-            wrapper._boxOverlay = attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes);
+            wrapper._boxOverlay = attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes, { posterFrame: hasSnapshot ? keyFrameNumber(keyFrame) : null });
         }
         requestAnimationFrame(() => overlayEl.classList.add('show'));
     }

@@ -268,9 +268,27 @@ function clock(seconds) {
 // put only the video in full screen or picture-in-picture) and put buttons
 // where they clash with ours and with system gestures. Stops when video
 // leaves the page.
-export function attachBoxOverlay(media, video, { rate, tracks }) {
+// posterFrame is the frame number the video's poster (the key frame) shows:
+// until playback or a seek replaces the poster, its boxes are drawn.
+export function attachBoxOverlay(media, video, { rate, tracks }, { posterFrame = null } = {}) {
     if (!media || !video) return null;
     const step = 1 / rate;
+    // The poster shows until the video plays or seeks. Its size stands in
+    // for the video's until the video's is known (iOS loads no metadata
+    // before playing).
+    let onPoster = Boolean(posterFrame && video.getAttribute('poster'));
+    const poster = new Image();
+    if (onPoster) {
+        poster.addEventListener('load', () => draw());
+        poster.src = video.getAttribute('poster');
+    }
+    const leavePoster = () => {
+        if (!onPoster) return;
+        onPoster = false;
+        draw();
+    };
+    video.addEventListener('play', leavePoster);
+    video.addEventListener('seeking', leavePoster);
     const layer = document.createElement('div');
     layer.className = 'llmvision-boxes-layer';
     const els = tracks.map((track) => {
@@ -421,7 +439,11 @@ export function attachBoxOverlay(media, video, { rate, tracks }) {
     });
 
     function draw() {
-        if (!shown || !video.videoWidth) return;
+        const vw = video.videoWidth || (onPoster ? poster.naturalWidth : 0);
+        const vh = video.videoHeight || (onPoster ? poster.naturalHeight : 0);
+        if (!shown || !vw || !vh) return;
+        // The poster's frame while it shows, else the frame playing
+        const t = onPoster ? (posterFrame - 1) / rate : video.currentTime;
         // The layer covers the stage's (unzoomed) box
         Object.assign(layer.style, {
             left: `${stage.offsetLeft}px`,
@@ -432,16 +454,16 @@ export function attachBoxOverlay(media, video, { rate, tracks }) {
         // The picture inside the video element: object-fit contain leaves bars
         const ew = video.clientWidth;
         const eh = video.clientHeight;
-        const scale = Math.min(ew / video.videoWidth, eh / video.videoHeight);
-        const w = video.videoWidth * scale;
-        const h = video.videoHeight * scale;
+        const scale = Math.min(ew / vw, eh / vh);
+        const w = vw * scale;
+        const h = vh * scale;
         const left = video.offsetLeft + (ew - w) / 2;
         const top = video.offsetTop + (eh - h) / 2;
         // A picture point (0-1000) on the layer, zoomed and panned
         const x = (v) => tx + (left + (v / 1000) * w) * zoom;
         const y = (v) => ty + (top + (v / 1000) * h) * zoom;
         tracks.forEach((track, i) => {
-            const box = boxAt(track, video.currentTime, step);
+            const box = boxAt(track, t, step);
             const el = els[i];
             el.hidden = !box;
             if (!box) return;
