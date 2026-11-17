@@ -110,7 +110,52 @@ function saveShown(shown) {
     } catch (e) {
         // not remembered, still toggled
     }
+    // Thumbnails follow the popup's toggle
+    window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, { detail: { shown } }));
 }
+
+// Sent on window with {shown} when the boxes are toggled
+export const TOGGLE_EVENT = 'llmvision-card-boxes-toggled';
+export const boxesShown = readShown;
+
+// The frame number a key frame shows, or null. The integration names key
+// frames <id>-<frame>.jpg, frame 1 being the first frame sent to the model.
+export function keyFrameNumber(path) {
+    const m = /-(\d+)\.jpe?g(?:$|[?#])/i.exec(String(path || ''));
+    return m ? Number(m[1]) : null;
+}
+
+// SVG markup with the tracks' boxes in the given frame, to lay over an image
+// of natural size width x height shown with object-fit: cover. '' when the
+// frame has no boxes.
+export function frameBoxesSvg(tracks, rate, frame, width, height) {
+    if (!frame || !(width > 0) || !(height > 0)) return '';
+    const t = (frame - 1) / rate;
+    const rects = [];
+    for (const track of tracks) {
+        for (const b of track.boxes) {
+            if (Math.abs(b.t - t) > 1e-6) continue;
+            const [ymin, xmin, ymax, xmax] = b.box.map((v) => Math.min(1000, Math.max(0, v)));
+            if (ymax <= ymin || xmax <= xmin) continue;
+            const x = (xmin / 1000) * width, y = (ymin / 1000) * height;
+            const w = ((xmax - xmin) / 1000) * width, h = ((ymax - ymin) / 1000) * height;
+            const color = String(track.color).replace(/[^#\w(),.%\s-]/g, '');
+            rects.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" stroke="${color}"/>`);
+        }
+    }
+    if (!rects.length) return '';
+    return `<svg class="llmvision-thumb-boxes" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${rects.join('')}</svg>`;
+}
+
+export const thumbBoxesCss = `
+    .llmvision-thumb-boxes {
+        position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+    }
+    .llmvision-thumb-boxes rect {
+        fill: none; stroke-width: 1.5px; vector-effect: non-scaling-stroke;
+    }
+    .llmvision-thumb-boxes[hidden] { display: none; }
+`;
 
 export const boxOverlayCss = `
     /* media clips the stage (the clip), which zooms and pans. The boxes are

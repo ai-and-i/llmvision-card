@@ -2,6 +2,7 @@ import { getIcon, translate, escapeHtml, eventLabels } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
 import { BaseLLMVisionCard } from './card-base.js';
+import { boxTracks, boxesShown, keyFrameNumber, frameBoxesSvg, thumbBoxesCss, TOGGLE_EVENT } from './boxes.js';
 import { LLMVisionPreviewCard } from './llmvision-preview-card.js';
 
 class TimelineCardEditor extends LitElement {
@@ -221,7 +222,8 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .event-container{display:flex;align-items:center;justify-content:flex-start;min-height:75px;gap:0 10px;cursor:pointer;margin-bottom:8px;min-width:0;overflow:hidden;}
                     .event-container.empty-state{height:100%;justify-content:center;align-items:center;text-align:center;cursor:default;margin-bottom:0;}
                     .event-container:last-child{margin-bottom:0;}
-                    .event-container img{width:min(240px,50%);height:auto;aspect-ratio:16/9;flex-shrink:0;border-radius:12px;object-fit:cover;}
+                    .event-thumb{position:relative;width:min(240px,50%);aspect-ratio:16/9;flex-shrink:0;border-radius:12px;overflow:hidden;}
+                    .event-thumb img{display:block;width:100%;height:100%;object-fit:cover;}
                     .event-container h3{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-m,14px);line-height:1.3;margin:0;flex-grow:1;color:var(--primary-text-color);overflow-wrap:anywhere;}
                     .event-container p{font-weight:var(--ha-font-weight-normal,400);font-size:var(--ha-font-size-s,12px);margin:0;flex-grow:1;color:var(--secondary-text-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
@@ -230,9 +232,16 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .event-label{flex-shrink:0;display:inline-flex;align-items:center;gap:3px;font-size:var(--ha-font-size-xs,11px);line-height:18px;padding:0 6px 0 5px;border-radius:9px;background:var(--table-header-background-color,rgba(0,0,0,0.08));color:var(--primary-text-color);white-space:nowrap;}
                     .event-label .text{text-transform:capitalize;}
                     .event-label ha-icon{--mdc-icon-size:12px;display:flex;}
+                    ${thumbBoxesCss}
                 </style>
             `;
             this.content = this.querySelector('.card-content');
+            // The popup's boxes toggle shows or hides the thumbnails' boxes too
+            window.addEventListener(TOGGLE_EVENT, (e) => {
+                this.content?.querySelectorAll('.llmvision-thumb-boxes').forEach((svg) => {
+                    svg.hidden = !e.detail?.shown;
+                });
+            });
         } else {
             const headerDiv = this.querySelector('.card-header');
             if (headerDiv) {
@@ -287,6 +296,16 @@ class LLMVisionCard extends BaseLLMVisionCard {
         this._render(details, hass);
     }
 
+    // The boxes the model gave for the frame the thumbnail shows
+    _addThumbBoxes(thumb, imgEl, d) {
+        thumb.querySelector('.llmvision-thumb-boxes')?.remove();
+        const { rate, tracks } = boxTracks(d.details, (l, c) => this.labelColor(l, c));
+        const svg = frameBoxesSvg(tracks, rate, keyFrameNumber(d.keyFrame), imgEl.naturalWidth, imgEl.naturalHeight);
+        if (!svg) return;
+        thumb.insertAdjacentHTML('beforeend', svg);
+        thumb.lastElementChild.hidden = !boxesShown();
+    }
+
     _render(details, hass) {
         this.content.innerHTML = '';
         let lastDate = '';
@@ -312,14 +331,20 @@ class LLMVisionCard extends BaseLLMVisionCard {
             const container = document.createElement('div');
             container.classList.add('event-container');
             container.innerHTML = `
-                <img alt="Key frame ${idx + 1}" style="display:none;" onerror="this.style.display='none'">
+                <div class="event-thumb" style="display:none;"><img alt="Key frame ${idx + 1}"></div>
                 <div class="event-details">
                     <h3>${escapeHtml(d.title)}</h3>
                     <p>${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
                     ${labelChips ? `<div class="event-labels">${labelChips}</div>` : ''}
                 </div>
             `;
-            const imgEl = container.querySelector('img');
+            const thumb = container.querySelector('.event-thumb');
+            const imgEl = thumb.querySelector('img');
+            imgEl.addEventListener('load', () => {
+                thumb.style.display = '';
+                this._addThumbBoxes(thumb, imgEl, d);
+            });
+            imgEl.addEventListener('error', () => { thumb.style.display = 'none'; });
             container.addEventListener('click', () => this.openEventPopup(hass, d, icon));
             this.content.appendChild(container);
             this.resolveKeyFrame(hass, d.keyFrame).then(url => {
