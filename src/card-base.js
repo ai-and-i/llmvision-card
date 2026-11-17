@@ -829,16 +829,22 @@ export class BaseLLMVisionCard extends HTMLElement {
 
     // The page under a popup doesn't scroll: wheel and touch scrolling over
     // the popup used to move the timeline behind it. Locks nest, so the page
-    // scrolls again once the last popup closes.
+    // scrolls again once the last popup closes. Only <html> is locked: HA's
+    // body is height:100%, so overflow:hidden on it clipped the page to one
+    // screen and the timeline jumped to the top. The scroll position is put
+    // back on unlock in case a browser still moved it.
     lockPageScroll(wrapper) {
         if (wrapper._scrollLocked) return;
         wrapper._scrollLocked = true;
-        const root = document.documentElement;
         window.__llmvisionScrollLocks = (window.__llmvisionScrollLocks || 0) + 1;
         if (window.__llmvisionScrollLocks === 1) {
-            window.__llmvisionScrollRestore = [root.style.overflow, document.body.style.overflow];
+            const root = document.documentElement;
+            window.__llmvisionScrollRestore = {
+                overflow: root.style.overflow,
+                x: window.scrollX,
+                y: window.scrollY,
+            };
             root.style.overflow = 'hidden';
-            document.body.style.overflow = 'hidden';
         }
     }
 
@@ -846,9 +852,13 @@ export class BaseLLMVisionCard extends HTMLElement {
         if (!wrapper._scrollLocked) return;
         wrapper._scrollLocked = false;
         window.__llmvisionScrollLocks = Math.max(0, (window.__llmvisionScrollLocks || 1) - 1);
-        if (window.__llmvisionScrollLocks === 0 && window.__llmvisionScrollRestore) {
-            [document.documentElement.style.overflow, document.body.style.overflow] = window.__llmvisionScrollRestore;
+        const saved = window.__llmvisionScrollRestore;
+        if (window.__llmvisionScrollLocks === 0 && saved) {
+            document.documentElement.style.overflow = saved.overflow;
             window.__llmvisionScrollRestore = null;
+            if (window.scrollX !== saved.x || window.scrollY !== saved.y) {
+                window.scrollTo({ left: saved.x, top: saved.y, behavior: 'instant' });
+            }
         }
     }
 
