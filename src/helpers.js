@@ -13,6 +13,16 @@ export function hexToRgba(hex, alpha = 1) {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
+// Whether path is media on this Home Assistant: a path on it ("/media/...",
+// "/local/...", "/api/..."), or an inline data: image. The card loads nothing
+// from other hosts, so an absolute or protocol-relative URL is refused.
+export function isLocalMedia(path) {
+    if (typeof path !== 'string') return false;
+    const p = path.trim();
+    if (/^data:image\//i.test(p)) return true;
+    return p.startsWith('/') && !p.startsWith('//') && !p.startsWith('/\\');
+}
+
 // Event titles and descriptions come from the model, and camera names from
 // users: they are text, never markup.
 export function escapeHtml(value) {

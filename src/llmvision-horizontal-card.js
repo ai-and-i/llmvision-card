@@ -1,4 +1,4 @@
-import { getIcon, translate, hexToRgba } from './helpers.js';
+import { getIcon, translate, hexToRgba, escapeHtml, isLocalMedia } from './helpers.js';
 import { LitElement, css, html } from "lit";
 
 export class TimelineHorizontalCardEditor extends LitElement {
@@ -637,7 +637,8 @@ export class LLMVisionHorizontalCard extends HTMLElement {
             segment.appendChild(label);
 
             // Optional: show key frame image on hover
-            if (keyFrame) {
+            // Only Home Assistant's own media (see isLocalMedia)
+            if (keyFrame && isLocalMedia(keyFrame.replace('/config/www/', '/local/'))) {
                 const img = document.createElement('img');
                 img.classList.add('event-image');
                 img.src = keyFrame.replace('/config/www/', '/local/');
@@ -671,7 +672,7 @@ export class LLMVisionHorizontalCard extends HTMLElement {
                     <h2>${event}</h2>
                      <button class="close-popup" style="font-size:30"><ha-icon icon="mdi:close"></ha-icon></button>
                 </div>
-                <img src="${keyFrame}" alt="Event Snapshot" onerror="this.style.display='none'">
+                ${keyFrame && isLocalMedia(keyFrame.replace('/config/www/', '/local/')) ? `<img src="${escapeHtml(keyFrame.replace('/config/www/', '/local/'))}" alt="Event Snapshot" onerror="this.style.display='none'">` : ''}
                 <p class="secondary"><span>${secondaryText}</span></p>
                 <p class="summary">${summary}</p>
             </div>

@@ -1,6 +1,7 @@
 import { VERSION } from "./version.js";
-import { translate, hexToRgba, escapeHtml, eventLabels, getIcon, getLabelIcon, labelCategory, solidColor, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
+import { translate, hexToRgba, escapeHtml, isLocalMedia, eventLabels, getIcon, getLabelIcon, labelCategory, solidColor, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
 import { boxTracks, withoutBoxes, attachBoxOverlay, boxOverlayCss } from './boxes.js';
+import { feedbackCss, feedbackHtml, attachFeedback } from './feedback.js';
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -138,6 +139,8 @@ export class BaseLLMVisionCard extends HTMLElement {
                     clip: (item.clip || ''),
                     // Extra structured data (any JSON value), or null
                     details: item.details ?? null,
+                    // The user's verdict on the analysis, or null
+                    feedback: item.feedback ?? null,
                     cameraName: cameraFriendlyName,
                     startTime: item.start || null,
                     endTime: item.end || null,
@@ -221,10 +224,13 @@ export class BaseLLMVisionCard extends HTMLElement {
         return `${datePart}, ${timePart}`;
     }
 
-    // Turns a file under /media/ (a key frame or a clip) into a signed URL
+    // Turns a file under /media/ (a key frame or a clip) into a signed URL.
+    // Only Home Assistant's own media is shown: an event's key frame or clip
+    // given as an absolute URL elsewhere is not loaded (see isLocalMedia).
     resolveMedia(hass, path, { fallback = path } = {}) {
-        if (!path) return Promise.resolve('');
-        if (/^https?:\/\//i.test(path)) return Promise.resolve(path);
+        if (!path || !isLocalMedia(path)) return Promise.resolve('');
+        // An inline image is already here
+        if (/^data:/i.test(path.trim())) return Promise.resolve(path.trim());
         const mediaContentID = path.replace('/media/', 'media-source://media_source/local/');
         const cached = this.imageCache.get(mediaContentID);
         if (cached && cached.renewAt > Date.now()) {
@@ -295,6 +301,9 @@ export class BaseLLMVisionCard extends HTMLElement {
                 label: d.label,
                 labels: d.labels,
                 details: d.details,
+                feedback: d.feedback,
+                // Keep the event's feedback current for the next popup
+                onFeedback: (feedback) => { d.feedback = feedback; },
                 icon: icon,
                 prefix: 'popup',
                 eventId: d.id
@@ -357,7 +366,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         }).join('');
     }
 
-    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, details, icon, prefix, eventId }, hassArg) {
+    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, details, feedback, onFeedback, icon, prefix, eventId }, hassArg) {
         const hass = hassArg || this.hass;
         const formattedTime = this.formatDateTimeFull(startTime);
         const secondaryText = cameraName ? `${formattedTime} • ${cameraName}` : formattedTime;
@@ -372,8 +381,6 @@ export class BaseLLMVisionCard extends HTMLElement {
         const menuListClass = `${prefix}-menu-list`;
         const menuItemClass = `${prefix}-menu-item`;
         const menuDeleteClass = `${prefix}-menu-item-delete`;
-        const menuThumbUpClass = `${prefix}-menu-item-thumbs-up`;
-        const menuThumbDownClass = `${prefix}-menu-item-thumbs-down`;
 
         const labelList = Array.isArray(labels) ? labels : (label ? [label] : []);
         const hasSnapshot = typeof keyFrame === 'string' ? keyFrame.trim().length > 0 : Boolean(keyFrame);
@@ -399,15 +406,6 @@ export class BaseLLMVisionCard extends HTMLElement {
                                 <ha-icon icon="mdi:dots-vertical"></ha-icon>
                             </button>
                             <div class="${menuListClass}" hidden>
-                                ${hasSnapshot ? `
-                                <div class="${prefix}-menu-rate-row">
-                                    <button class="${menuItemClass} ${menuThumbUpClass}" title="Good response">
-                                        <ha-icon icon="mdi:thumb-up-outline"></ha-icon>
-                                    </button>
-                                    <button class="${menuItemClass} ${menuThumbDownClass}" title="Bad response">
-                                        <ha-icon icon="mdi:thumb-down-outline"></ha-icon>
-                                    </button>
-                                </div>` : ''}
                                 <button class="${menuItemClass} ${menuDeleteClass}" title="Delete event">
                                     <ha-icon icon="mdi:trash-can-outline"></ha-icon>
                                     <span>${translate('delete', this.language) || 'Delete'}</span>
@@ -427,10 +425,10 @@ export class BaseLLMVisionCard extends HTMLElement {
                     </div>
                     ${mediaBlock}
                     <p class="summary">${escapeHtml(summary)}</p>
-                    ${hasDetails(withoutBoxes(details)) ? `
+                    ${eventId || hasDetails(withoutBoxes(details)) ? `
                     <details class="${prefix}-details">
                         <summary>${escapeHtml(translate('additional_details', this.language) || 'Additional details')}</summary>
-                        <div class="${prefix}-details-body">${renderDetails(withoutBoxes(details))}</div>
+                        <div class="${prefix}-details-body">${eventId ? feedbackHtml(prefix) : ''}${hasDetails(withoutBoxes(details)) ? renderDetails(withoutBoxes(details)) : ''}</div>
                     </details>` : ''}
                 </div>
             `;
@@ -573,6 +571,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                     }
     
                     ${boxOverlayCss}
+                    ${feedbackCss(prefix)}
 
                     /* Image or clip, and text */
                     .${contentClass} img, .${contentClass} video {
@@ -707,20 +706,6 @@ export class BaseLLMVisionCard extends HTMLElement {
                         min-width: 160px;
                         z-index: 10;
                     }
-                    .${prefix}-menu-rate-row {
-                        display: flex;
-                        gap: 8px;
-                        align-items: center;
-                        margin-bottom: 6px;
-                        width: 100%;
-                    }
-                    .${menuItemClass}.${menuThumbUpClass}, .${menuItemClass}.${menuThumbDownClass} {
-                        flex: 1 1 0;
-                        min-width: 0;
-                        padding: 8px 12px;
-                        justify-content: center;
-                        box-sizing: border-box;
-                    }
                     .${menuItemClass} {
                         width: 100%;
                         display: flex;
@@ -738,12 +723,6 @@ export class BaseLLMVisionCard extends HTMLElement {
                     }
                     .${menuDeleteClass} {
                         color: var(--error-color, #d32f2f);
-                    }
-                    .${menuThumbUpClass} {
-                        padding: 6px !important;
-                    }
-                    .${menuThumbDownClass} {
-                        padding: 6px !important;
                     }
     
                     @media (max-width: 768px) {
@@ -824,414 +803,19 @@ export class BaseLLMVisionCard extends HTMLElement {
             });
         }
 
-        // Wire up thumbs up / thumbs down inside menu
-        const thumbsUpItem = wrapper.querySelector(`.${menuThumbUpClass}`);
-        const thumbsDownItem = wrapper.querySelector(`.${menuThumbDownClass}`);
-        const sendFeedback = async (feedback, el, reason, userFeedbackText, correctedTitle = '', correctedDescription = '', correctedLabel = '', correctedCategory = '') => {
-            if (el.disabled) return;
-            el.disabled = true;
-            const eventDetail = { eventId, feedback };
-            this.dispatchEvent(new CustomEvent('llmvision-feedback', { detail: eventDetail, bubbles: true, composed: true }));
-
-            // Prepare metadata to send
-            const metadata = {
-                title: event || '',
-                description: summary || '',
-                label: labelList.join(', '),
-                category: category || '',
-                icon: icon || this.default_icon || '',
-                eventId: eventId || '',
-                startTime: startTime || ''
-            };
-
-            try {
-                let blob = null;
-                let filename = '';
-
-                // Image is optional: if unavailable, still submit feedback payload.
-                if (keyFrame) {
-                    try {
-                        const imageRes = keyFrame.startsWith('data:')
-                            ? await fetch(keyFrame)
-                            : await fetch(keyFrame, { mode: 'cors' });
-                        blob = await imageRes.blob();
-                        const contentType = blob.type || 'image/jpeg';
-                        const ext = contentType.split('/')[1] || 'jpg';
-                        filename = `event_${eventId || Date.now()}.${ext}`;
-                    } catch (imageErr) {
-                        console.warn('Unable to fetch key frame for feedback upload; submitting feedback without image.', imageErr);
-                    }
-                }
-
-                // Send request to feedback API
-                const app_key = 'e2d892b226e34339940079041ebc65fed345a5cdbd888b6f042ec2c44e0f9a2a';
-                try {
-                    const form = new FormData();
-                    if (blob) {
-                        form.append('image', blob, filename || `event_${eventId || Date.now()}.jpg`);
-                    }
-                    form.append('isTitle', metadata.title || '');
-                    form.append('shouldBeTitle', correctedTitle || event || '');
-                    form.append('isDescription', metadata.description || '');
-                    form.append('shouldBeDescription', correctedDescription || summary || '');
-                    form.append('isLabel', metadata.label || '');
-                    form.append('shouldBeLabel', correctedLabel || metadata.label || '');
-                    form.append('isCategory', metadata.category || '');
-                    form.append('shouldBeCategory', correctedCategory || category || '');
-                    form.append('isIcon', metadata.icon || '');
-                    form.append('shouldBeIcon', icon || '');
-                    form.append('upDown', feedback || '');
-                    form.append('reason', reason || '');
-                    // Include any additional feedback provided by the user
-                    form.append('feedback', userFeedbackText || '');
-
-                    const res = await fetch('https://feedback.llmvision.org/', {
-                        method: 'POST',
-                        headers: {
-                            'X-App-Key': app_key
-                        },
-                        body: form,
-                        mode: 'cors'
-                    });
-
-                    if (!res.ok) {
-                        const text = await res.text().catch(() => '');
-                        console.error('Feedback upload failed:', res.status, text);
-                    } else {
-                        console.log('Feedback uploaded successfully');
-                    }
-                } catch (err) {
-                    console.error('Error uploading snapshot to feedback API:', err);
-                }
-            } catch (err) {
-                console.error('Error uploading snapshot to feedback API:', err);
-            } finally {
-                this.closePopup(wrapper, overlayClass, popstateHandler, escHandler);
-            }
-        };
-        // Opens a multi-page feedback-detail flow (reason -> conditional page -> details)
-        const openFeedbackDetail = (feedback, el) => {
-            if (el.disabled) return;
-            const fdOverlayClass = `${prefix}-feedback-detail-overlay`;
-            const fdContentClass = `${prefix}-feedback-detail-content`;
-            const fdWrapper = document.createElement('div');
-
-            // Reasons list
-            const reasons = [
-                { value: 'event_not_no_activity', label: `Event is not 'no activity'` },
-                { value: 'event_is_no_activity', label: `Event should be 'no activity'` },
-                { value: 'incorrect_title_description', label: 'Incorrect title/descriptions' },
-                { value: 'incorrect_label', label: 'Incorrect label' },
-                { value: 'other', label: 'Other' }
-            ];
-
-            const normalizedEventTitle = (event || '').trim().toLowerCase();
-            const filteredReasons = reasons.filter((reason) => {
-                if (normalizedEventTitle.includes('no activity')) {
-                    return reason.value !== 'event_is_no_activity';
-                }
-                return reason.value !== 'event_not_no_activity';
-            });
-
-            fdWrapper.innerHTML = `
-                <div class="${fdOverlayClass}">
-                    <div class="${fdContentClass}">
-                        <button class="${prefix}-fd-close" title="Close" aria-label="Close" style="font-size:20px">✕</button>
-                            <div class="${prefix}-fd-page ${prefix}-fd-page-1">
-                                <h2>${translate('feedback_reason', this.language) || 'Select a reason'}</h2>
-                                <div class="${prefix}-fd-reason-list">
-                                    ${filteredReasons.map(r => `
-                                        <button type="button" class="${prefix}-fd-reason-btn" data-value="${r.value}">${r.label}</button>
-                                    `).join('')}
-                                </div>
-                            </div>
-
-                        <div class="${prefix}-fd-page ${prefix}-fd-page-2" hidden>
-                            <!-- dynamic second page: for event_not_no_activity show title+description, otherwise show a short note -->
-                            <div class="${prefix}-fd-page-2-content" style="margin-top:24px"></div>
-                            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-                                <button class="${prefix}-fd-next-2">${translate('next', this.language) || 'Next'}</button>
-                            </div>
-                        </div>
-
-                        <div class="${prefix}-fd-page ${prefix}-fd-page-3" hidden>
-                            <h2>${translate('additional_details', this.language) || 'Additional details'}</h2>
-                            <textarea class="${prefix}-fd-final-details" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.12)"></textarea>
-                            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-                                <button class="${prefix}-fd-send">${translate('send', this.language) || 'Send'}</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <style>
-                    .${fdOverlayClass} { position: fixed; inset: 0; display:flex;align-items:center;justify-content:center;z-index:1100;background:rgba(0,0,0,0.45); }
-                    .${fdContentClass} { position:relative; background: var(--ha-card-background, var(--card-background-color, #fff)); color: var(--primary-text-color); padding: 18px; border-radius:12px; width: 520px; max-width: calc(100% - 40px); max-height: calc(100vh - 40px); overflow-y: auto; }
-                    .${fdContentClass} h2 { margin:0 0 8px 0; text-align:center }
-                    .${prefix}-fd-close { position:absolute; left:12px; top:12px; background:none; border:none; cursor:pointer; color:var(--primary-text-color); }
-                    .${prefix}-fd-reason-list { }
-                    .${prefix}-fd-reason-btn {
-                        cursor: pointer;
-                        display: block;
-                        width: 100%;
-                        text-align: left;
-                        padding: 10px;
-                        margin: 6px 0;
-                        border-radius: 8px;
-                        border: none;
-                        transition: background 120ms ease, transform 60ms ease;
-                        background: transparent;
-                    }
-                    .${prefix}-fd-reason-btn:hover {
-                        background: rgba(0,0,0,0.04);
-                    }
-                    .${prefix}-fd-reason-btn.selected {
-                        background: rgba(0,0,0,0.06);
-                    }
-                </style>
-            `;
-
-            const overlayEl = fdWrapper.querySelector(`.${fdOverlayClass}`);
-            const closeFdBtn = fdWrapper.querySelector(`.${prefix}-fd-close`);
-            const page1 = fdWrapper.querySelector(`.${prefix}-fd-page-1`);
-            const page2 = fdWrapper.querySelector(`.${prefix}-fd-page-2`);
-            const page3 = fdWrapper.querySelector(`.${prefix}-fd-page-3`);
-
-            const cancelBtn = fdWrapper.querySelector(`.${prefix}-fd-cancel`);
-            const nextBtn = fdWrapper.querySelector(`.${prefix}-fd-next`);
-            const next2Btn = fdWrapper.querySelector(`.${prefix}-fd-next-2`);
-            const sendBtn = fdWrapper.querySelector(`.${prefix}-fd-send`);
-
-            const page2Content = fdWrapper.querySelector(`.${prefix}-fd-page-2-content`);
-            const finalDetails = fdWrapper.querySelector(`.${prefix}-fd-final-details`);
-
-            const removeFd = () => {
-                if (fdWrapper._escHandler) document.removeEventListener('keydown', fdWrapper._escHandler);
-                if (fdWrapper.parentElement) document.body.removeChild(fdWrapper);
-            };
-
-            if (cancelBtn) cancelBtn.addEventListener('click', (ev) => { ev.stopPropagation(); removeFd(); });
-            if (closeFdBtn) {
-                // Close button doubles as a "back" button on page 2 and 3
-                const handleCloseOrBack = (ev) => {
-                    ev.stopPropagation();
-                    if (!page2.hidden && page3.hidden) {
-                        // on page2 -> go back to page1
-                        page2.hidden = true;
-                        page1.hidden = false;
-                        closeFdBtn.textContent = '✕';
-                        closeFdBtn.title = 'Close';
-                        closeFdBtn.setAttribute('aria-label', 'Close');
-                    } else if (!page3.hidden) {
-                        // on page3 -> go back to page2 (or page1 when page2 was skipped)
-                        const selectedReason = page2.dataset.reason || '';
-                        page3.hidden = true;
-                        if (selectedReason === 'other') {
-                            page2.hidden = true;
-                            page1.hidden = false;
-                            closeFdBtn.textContent = '✕';
-                            closeFdBtn.title = 'Close';
-                            closeFdBtn.setAttribute('aria-label', 'Close');
-                            return;
-                        }
-                        page2.hidden = false;
-                        closeFdBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m313-440 196 196q12 12 11.5 28T508-188q-12 11-28 11.5T452-188L188-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l264-264q11-11 27.5-11t28.5 11q12 12 12 28.5T508-715L313-520h447q17 0 28.5 11.5T800-480q0 17-11.5 28.5T760-440H313Z"/></svg>
-                        `;
-                        closeFdBtn.title = 'Back';
-                        closeFdBtn.setAttribute('aria-label', 'Back');
-                    } else {
-                        // default: remove dialog
-                        removeFd();
-                    }
-                };
-                closeFdBtn.addEventListener('click', handleCloseOrBack);
-            }
-            overlayEl.addEventListener('click', (ev) => { if (ev.target === overlayEl) removeFd(); });
-            fdWrapper._escHandler = (ev) => { if (ev.key === 'Escape') removeFd(); };
-            document.addEventListener('keydown', fdWrapper._escHandler);
-
-            // Make reason buttons immediately advance to page 2
-            const reasonBtns = fdWrapper.querySelectorAll(`.${prefix}-fd-reason-btn`);
-            reasonBtns.forEach((btn) => {
-                btn.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    // mark selected
-                    reasonBtns.forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                    const reason = btn.dataset.value;
-                    // populate page2 based on reason
-                    page2Content.innerHTML = '';
-                    if (reason === 'event_not_no_activity') {
-                        page2Content.innerHTML = `
-                            <label style="display:block;margin:8px 0;font-weight:600">${translate('correct_title', this.language) || 'Correct title'}</label>
-                            <input class="${prefix}-fd-correct-title" type="text" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.12)">
-                            <label style="display:block;margin:8px 0;font-weight:600">${translate('correct_description', this.language) || 'Correct description'}</label>
-                            <textarea class="${prefix}-fd-correct-description" rows="4" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.12)"></textarea>
-                        `;
-                    } else if (reason === 'incorrect_title_description') {
-                        page2Content.innerHTML = `
-                            <label style="display:block;margin:8px 0;font-weight:600">${translate('correct_title', this.language) || 'Correct title'}</label>
-                            <input class="${prefix}-fd-correct-title" type="text" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.12)">
-                            <label style="display:block;margin:8px 0;font-weight:600">${translate('correct_description', this.language) || 'Correct description'}</label>
-                            <textarea class="${prefix}-fd-correct-description" rows="4" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.12)"></textarea>
-                        `;
-                    } else if (reason === 'incorrect_label') {
-                        page2Content.innerHTML = `
-                            <label style="display:block;margin:8px 0;font-weight:600">${translate('correct_label', this.language) || 'Pick the correct label'}</label>
-                            <select class="${prefix}-fd-correct-label" style="width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.12)">
-                                <option value="Alarm">Alarm</option>
-                                <option value="Bicycle">Bicycle</option>
-                                <option value="Bird">Bird</option>
-                                <option value="Bus">Bus</option>
-                                <option value="Camera">Camera</option>
-                                <option value="Car">Car</option>
-                                <option value="Cat">Cat</option>
-                                <option value="Dog">Dog</option>
-                                <option value="Door">Door</option>
-                                <option value="Key">Key</option>
-                                <option value="Light">Light</option>
-                                <option value="Lock">Lock</option>
-                                <option value="Motorcycle">Motorcycle</option>
-                                <option value="Delivery">Delivery</option>
-                                <option value="Person">Person</option>
-                                <option value="Plant">Plant</option>
-                                <option value="Sensor">Sensor</option>
-                                <option value="Tree">Tree</option>
-                                <option value="Truck">Truck</option>
-                                <option value="Van">Van</option>
-                            </select>
-                        `;
-                    }
-                    else {
-                        page2Content.innerHTML = `
-                            <p style="margin:6px 0">${translate('please_provide_details', this.language) || 'Please provide more details on the next page.'}</p>
-                        `;
-                    }
-                    page2.dataset.reason = reason;
-                    page1.hidden = true;
-                    if (reason === 'other') {
-                        page2.hidden = true;
-                        page3.hidden = false;
-                    } else {
-                        page2.hidden = false;
-                        page3.hidden = true;
-                    }
-                    // change close button into back-arrow
-                    if (closeFdBtn) {
-                        closeFdBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m313-440 196 196q12 12 11.5 28T508-188q-12 11-28 11.5T452-188L188-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l264-264q11-11 27.5-11t28.5 11q12 12 12 28.5T508-715L313-520h447q17 0 28.5 11.5T800-480q0 17-11.5 28.5T760-440H313Z"/></svg>
-                        `;
-                        closeFdBtn.title = 'Back';
-                        closeFdBtn.setAttribute('aria-label', 'Back');
-                    }
-                });
-            });
-
-            // Next button fallback (for accessibility) - use selected reason button
-            if (nextBtn) {
-                nextBtn.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    const selectedBtn = fdWrapper.querySelector(`.${prefix}-fd-reason-btn.selected`);
-                    if (!selectedBtn) return;
-                    selectedBtn.click();
-                });
-            }
-
-            next2Btn.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                // move to final page
-                page2.hidden = true;
-                page3.hidden = false;
-                // ensure close button stays as back-arrow
-                if (closeFdBtn) {
-                    closeFdBtn.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m313-440 196 196q12 12 11.5 28T508-188q-12 11-28 11.5T452-188L188-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l264-264q11-11 27.5-11t28.5 11q12 12 12 28.5T508-715L313-520h447q17 0 28.5 11.5T800-480q0 17-11.5 28.5T760-440H313Z"/></svg>
-                    `;
-                    closeFdBtn.title = 'Back';
-                    closeFdBtn.setAttribute('aria-label', 'Back');
-                }
-            });
-
-            sendBtn.addEventListener('click', async (ev) => {
-                ev.stopPropagation();
-                sendBtn.disabled = true;
-                const reason = page2.dataset.reason || '';
-                let corrections = '';
-                if (reason === 'event_not_no_activity') {
-                    const t = fdWrapper.querySelector(`.${prefix}-fd-correct-title`);
-                    const d = fdWrapper.querySelector(`.${prefix}-fd-correct-description`);
-                    const titleVal = t ? (t.value || '').trim() : '';
-                    const descVal = d ? (d.value || '').trim() : '';
-                    if (titleVal) corrections += `Title: ${titleVal}`;
-                    if (descVal) corrections += (corrections ? '\n' : '') + `Description: ${descVal}`;
-                }
-                const finalText = (finalDetails.value || '').trim();
-                // Include any title/description corrections from page2 (if present)
-                let correctedTitle = '';
-                let correctedDescription = '';
-                let correctedLabel = '';
-                let correctedCategory = '';
-                if (reason === 'event_not_no_activity') {
-                    const t = fdWrapper.querySelector(`.${prefix}-fd-correct-title`);
-                    const d = fdWrapper.querySelector(`.${prefix}-fd-correct-description`);
-                    correctedTitle = t ? (t.value || '').trim() : '';
-                    correctedDescription = d ? (d.value || '').trim() : '';
-                }
-                else if (reason === 'incorrect_title_description') {
-                    const t = fdWrapper.querySelector(`.${prefix}-fd-correct-title`);
-                    const d = fdWrapper.querySelector(`.${prefix}-fd-correct-description`);
-                    correctedTitle = t ? (t.value || '').trim() : '';
-                    correctedDescription = d ? (d.value || '').trim() : '';
-                }
-                else if (reason === 'incorrect_label') {
-                    const l = fdWrapper.querySelector(`.${prefix}-fd-correct-label`);
-                    correctedLabel = l ? (l.value || '').trim() : '';
-                }
-                else if (reason === 'incorrect_category') {
-                    const c = fdWrapper.querySelector(`.${prefix}-fd-correct-title`);
-                    correctedCategory = c ? (c.value || '').trim() : '';
-                }
-                await sendFeedback(feedback, el, reason, finalText, correctedTitle, correctedDescription, correctedLabel, correctedCategory);
-                removeFd();
-                // open snackbar to thank the user for their feedback
-                showSnackbar(translate('thanks_for_feedback', this.language) || 'Thanks for your feedback!');
-            });
-
-            document.body.appendChild(fdWrapper);
-        };
-
-        const showSnackbar = (message) => {
-            // close event detail popups before showing the snackbar to ensure it appears above them
-            this.closePopup(wrapper, overlayClass, popstateHandler, escHandler);
-            this.dispatchEvent(new CustomEvent('hass-notification', {
-                bubbles: true,
-                composed: true,
-                detail: {
-                    message,
-                    duration: 4000
-                }
-            }));
-        };
-
-        if (thumbsUpItem && eventId) {
-            thumbsUpItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (menuList) menuList.hidden = true;
-                // open snackbar to thank the user for their feedback
-                sendFeedback('up', thumbsUpItem, 'good_response', '', '', '', '', '');
-                showSnackbar(translate('thanks_for_feedback', this.language) || 'Thanks for your feedback!');
-            });
-        }
-        if (thumbsDownItem && eventId) {
-            thumbsDownItem.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (menuList) menuList.hidden = true;
-                openFeedbackDetail('down', thumbsDownItem);
-            });
-        }
-
         document.body.appendChild(wrapper);
         this.lockPageScroll(wrapper);
+        if (eventId) {
+            attachFeedback(wrapper, prefix, {
+                feedback,
+                save: async (verdict, comment) => {
+                    const res = await hass.callApi('POST', `llmvision/timeline/event/${encodeURIComponent(eventId)}/feedback`, { verdict, comment });
+                    return res?.event?.feedback ?? null;
+                },
+                formatTime: (iso) => this.formatDateTimeFull(iso),
+                onSaved: (saved) => onFeedback?.(saved),
+            });
+        }
         // Every clip gets the card's viewer, with boxes when the event has them
         if (clip) {
             wrapper._boxOverlay = attachBoxOverlay(wrapper.querySelector('.llmvision-boxes-media'), wrapper.querySelector('.llmvision-boxes-media video'), boxes);
