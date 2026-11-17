@@ -1,7 +1,8 @@
 import { VERSION } from "./version.js";
 import { translate, hexToRgba, escapeHtml, isLocalMedia, eventLabels, getIcon, getLabelIcon, labelCategory, solidColor, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
 import { boxTracks, withoutBoxes, attachBoxOverlay, boxOverlayCss, keyFrameNumber } from './boxes.js';
-import { feedbackCss, feedbackHtml, attachFeedback } from './feedback.js';
+import { feedbackCss, feedbackHtml, attachFeedback, feedbackBadgeHtml } from './feedback.js';
+export { feedbackBadgeHtml };
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
 const MEDIA_URL_TTL_S = 60 * 60 * 3;
@@ -303,7 +304,10 @@ export class BaseLLMVisionCard extends HTMLElement {
                 details: d.details,
                 feedback: d.feedback,
                 // Keep the event's feedback current for the next popup
-                onFeedback: (feedback) => { d.feedback = feedback; },
+                onFeedback: (feedback) => {
+                    d.feedback = feedback;
+                    this.feedbackChanged?.(d);
+                },
                 icon: icon,
                 prefix: 'popup',
                 eventId: d.id

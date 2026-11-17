@@ -1,7 +1,7 @@
 import { getIcon, translate, escapeHtml, eventLabels } from './helpers.js';
 import { labels } from './labels.js';
 import { LitElement, css, html } from "lit";
-import { BaseLLMVisionCard } from './card-base.js';
+import { BaseLLMVisionCard, feedbackBadgeHtml } from './card-base.js';
 import { boxTracks, boxesShown, keyFrameNumber, frameBoxesSvg, thumbBoxesCss, TOGGLE_EVENT } from './boxes.js';
 import { LLMVisionPreviewCard } from './llmvision-preview-card.js';
 
@@ -229,6 +229,7 @@ class LLMVisionCard extends BaseLLMVisionCard {
                     .date-header h2{font-weight:var(--ha-font-weight-medium,500);font-size:var(--ha-font-size-l,16px);margin:0;color:var(--primary-text-color);overflow:hidden;text-overflow:ellipsis;}
                     .event-details{flex-grow:1;min-width:0;padding:4px 0;}
                     .event-labels{display:flex;align-items:center;gap:4px;margin-top:4px;overflow:hidden;}
+                    .event-labels[hidden]{display:none;}
                     .event-label{flex-shrink:0;display:inline-flex;align-items:center;gap:3px;font-size:var(--ha-font-size-xs,11px);line-height:18px;padding:0 6px 0 5px;border-radius:9px;background:var(--table-header-background-color,rgba(0,0,0,0.08));color:var(--primary-text-color);white-space:nowrap;}
                     .event-label .text{text-transform:capitalize;}
                     .event-label ha-icon{--mdc-icon-size:12px;display:flex;}
@@ -296,6 +297,16 @@ class LLMVisionCard extends BaseLLMVisionCard {
         this._render(details, hass);
     }
 
+    // Feedback saved in the popup shows on the event's row straight away
+    feedbackChanged(d) {
+        const row = [...(this.content?.querySelectorAll('.event-container') || [])].find((c) => c.dataset.eventId === d.id);
+        const labelsEl = row?.querySelector('.event-labels');
+        if (!labelsEl) return;
+        labelsEl.querySelector('[data-feedback-badge]')?.remove();
+        labelsEl.insertAdjacentHTML('beforeend', feedbackBadgeHtml(d.feedback, 'event-label'));
+        labelsEl.hidden = !labelsEl.children.length;
+    }
+
     // The boxes the model gave for the frame the thumbnail shows
     _addThumbBoxes(thumb, imgEl, d) {
         thumb.querySelector('.llmvision-thumb-boxes')?.remove();
@@ -325,17 +336,19 @@ class LLMVisionCard extends BaseLLMVisionCard {
             if ((d.category === undefined || d.category === '') && this.default_icon) {
                 icon = this.default_icon;
             }
-            const labelChips = this.show_labels
+            // The labels, then your feedback
+            const labelChips = (this.show_labels
                 ? this.labelBadgesHtml(d.category, eventLabels(d), 'event-label')
-                : '';
+                : '') + feedbackBadgeHtml(d.feedback, 'event-label');
             const container = document.createElement('div');
             container.classList.add('event-container');
+            container.dataset.eventId = d.id;
             container.innerHTML = `
                 <div class="event-thumb" style="display:none;"><img alt="Key frame ${idx + 1}"></div>
                 <div class="event-details">
                     <h3>${escapeHtml(d.title)}</h3>
                     <p>${escapeHtml(d.cameraName ? `${timeStr} • ${d.cameraName}` : timeStr)}</p>
-                    ${labelChips ? `<div class="event-labels">${labelChips}</div>` : ''}
+                    <div class="event-labels"${labelChips ? '' : ' hidden'}>${labelChips}</div>
                 </div>
             `;
             const thumb = container.querySelector('.event-thumb');

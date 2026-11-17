@@ -23,6 +23,23 @@ const NEXT = { '': 'minor', minor: 'wrong', wrong: '' };
 const NEXT_MISSED = { minor: 'wrong', wrong: 'minor' };
 const SINGULAR = { animals: 'animal', people: 'person' };
 
+// The badge the timeline shows for an event's feedback, by verdict:
+// [icon, text, icon colour, background]
+const VERDICT_BADGES = {
+    correct: ['mdi:check-circle', 'Correct', '#16A34A', 'rgba(22,163,74,0.15)'],
+    minor: ['mdi:alert-circle', 'Minor issues', '#D97706', 'rgba(245,158,11,0.18)'],
+    wrong: ['mdi:close-circle', 'Wrong', '#DC2626', 'rgba(220,38,38,0.14)'],
+    incorrect: ['mdi:close-circle-outline', "Something's wrong", '#DC2626', 'rgba(220,38,38,0.14)'],
+};
+
+// A badge for the feedback given on an event, '' without feedback
+export function feedbackBadgeHtml(feedback, badgeClass) {
+    const badge = VERDICT_BADGES[feedback?.verdict];
+    if (!badge) return '';
+    const [icon, text, color, background] = badge;
+    return `<span class="${badgeClass}" data-feedback-badge style="background-color:${background};" title="Your feedback: ${text}"><ha-icon icon="${icon}" style="color:${color};"></ha-icon><span class="text" style="text-transform:none;">${text}</span></span>`;
+}
+
 export function feedbackCss(prefix) {
     const p = `.${prefix}`;
     return `
