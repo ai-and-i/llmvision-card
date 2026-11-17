@@ -236,17 +236,32 @@ function renderCell(value, depth) {
     return isPlain(value) ? escapeHtml(value) : renderDetails(value, depth + 1);
 }
 
+// A data-part attribute naming where a value sits in the details, such as
+// "animals.0.species", for feedback marks; '' without a path
+function partAttr(path) {
+    return path ? ` data-part="${escapeHtml(path)}"` : '';
+}
+
+function childPath(path, key) {
+    return path ? `${path}.${String(key).toLowerCase()}` : '';
+}
+
 // rows as a table, one column per key. With rowNames, each row starts with
-// its name as a row header.
-function renderTable(rows, depth, rowNames = null) {
+// its name as a row header. With a path, rows and (for lists) cells carry
+// their data-part: "<path>.<i>" and "<path>.<i>.<key>" for a list,
+// "<path>.<name>" for named rows.
+function renderTable(rows, depth, rowNames = null, path = '') {
     const columns = columnsOf(rows);
     const head = `<tr>${rowNames ? '<td></td>' : ''}${columns
         .map((key) => `<th scope="col">${escapeHtml(detailKey(key))}</th>`)
         .join('')}</tr>`;
     const body = rows
-        .map((row, i) => `<tr>${rowNames ? `<th scope="row">${escapeHtml(detailKey(rowNames[i]))}</th>` : ''}${columns
-            .map((key) => `<td>${renderCell(row[key], depth)}</td>`)
-            .join('')}</tr>`)
+        .map((row, i) => {
+            const rowPath = childPath(path, rowNames ? rowNames[i] : i);
+            return `<tr${partAttr(rowPath)}${rowPath ? ` data-row="${rowNames ? 'named' : 'item'}"` : ''}>${rowNames ? `<th scope="row">${escapeHtml(detailKey(rowNames[i]))}</th>` : ''}${columns
+                .map((key) => `<td${rowNames ? '' : partAttr(childPath(rowPath, key))} data-column="${escapeHtml(detailKey(key))}">${renderCell(row[key], depth)}</td>`)
+                .join('')}</tr>`;
+        })
         .join('');
     return `<div class="details-table-wrap"><table class="details-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
@@ -255,7 +270,10 @@ function renderTable(rows, depth, rowNames = null) {
 // as escaped HTML. Top-level keys become headings. A list of objects is a
 // table with a row per item; an object of objects is a table with a row per
 // key; any other object is a two-column name/value table.
-export function renderDetails(value, depth = 0) {
+//
+// path (set for the top-level sections' direct values) gives tables'
+// rows and cells their data-part (see renderTable).
+export function renderDetails(value, depth = 0, path = '') {
     if (value === null || value === undefined || value === '') {
         return '<span class="details-empty">–</span>';
     }
@@ -267,7 +285,7 @@ export function renderDetails(value, depth = 0) {
         if (value.every(isPlain)) {
             return `<span class="details-text">${escapeHtml(value.join(', '))}</span>`;
         }
-        if (value.every(isRecord)) return renderTable(value, depth);
+        if (value.every(isRecord)) return renderTable(value, depth, null, path);
         return `<ol class="details-list">${value
             .map((item) => `<li>${renderDetails(item, depth + 1)}</li>`)
             .join('')}</ol>`;
@@ -277,11 +295,11 @@ export function renderDetails(value, depth = 0) {
         if (!entries.length) return '<span class="details-empty">–</span>';
         if (depth === 0) {
             return entries
-                .map(([k, v]) => `<section class="details-section"><h4>${escapeHtml(detailKey(k))}</h4>${renderDetails(v, depth + 1)}</section>`)
+                .map(([k, v]) => `<section class="details-section" data-section="${escapeHtml(String(k).toLowerCase())}" data-kind="${Array.isArray(v) ? 'list' : 'other'}"><h4>${escapeHtml(detailKey(k))}</h4>${renderDetails(v, depth + 1, String(k).toLowerCase())}</section>`)
                 .join('');
         }
         if (entries.every(([, v]) => isRecord(v) && Object.keys(v).length)) {
-            return renderTable(entries.map(([, v]) => v), depth, entries.map(([k]) => k));
+            return renderTable(entries.map(([, v]) => v), depth, entries.map(([k]) => k), path);
         }
         return `<div class="details-table-wrap"><table class="details-table details-pairs"><tbody>${entries
             .map(([k, v]) => `<tr><th scope="row">${escapeHtml(detailKey(k))}</th><td>${renderCell(v, depth)}</td></tr>`)

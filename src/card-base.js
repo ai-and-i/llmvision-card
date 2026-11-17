@@ -398,7 +398,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                             <ha-icon icon="mdi:close"></ha-icon>
                         </button>
                         <div class="${prefix}-title-main">
-                            <h2>${escapeHtml(event)}</h2>
+                            <h2 data-part="title">${escapeHtml(event)}</h2>
                         </div>
                         ${eventId ? `
                             <div class="${menuWrapperClass}">
@@ -424,7 +424,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                         </div>
                     </div>
                     ${mediaBlock}
-                    <p class="summary">${escapeHtml(summary)}</p>
+                    <p class="summary" data-part="description">${escapeHtml(summary)}</p>
                     ${eventId || hasDetails(withoutBoxes(details)) ? `
                     <details class="${prefix}-details">
                         <summary>${escapeHtml(translate('additional_details', this.language) || 'Additional details')}</summary>
@@ -808,8 +808,8 @@ export class BaseLLMVisionCard extends HTMLElement {
         if (eventId) {
             attachFeedback(wrapper, prefix, {
                 feedback,
-                save: async (verdict, comment) => {
-                    const res = await hass.callApi('POST', `llmvision/timeline/event/${encodeURIComponent(eventId)}/feedback`, { verdict, comment });
+                save: async ({ verdict, comment, marks }) => {
+                    const res = await hass.callApi('POST', `llmvision/timeline/event/${encodeURIComponent(eventId)}/feedback`, { verdict, comment, marks });
                     return res?.event?.feedback ?? null;
                 },
                 formatTime: (iso) => this.formatDateTimeFull(iso),

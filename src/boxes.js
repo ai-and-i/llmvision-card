@@ -44,7 +44,22 @@ export function boxTracks(details, colorFor = () => null) {
     return { rate, tracks };
 }
 
-// details without the boxes and frame rate, for the details table
+// "frames 4-19" (or "frame 3", or "frames 2-5, 9") for a list of boxes
+function framesText(boxes) {
+    const frames = [...new Set(boxes.filter(validBox).map((b) => Number(b.frame)))].sort((a, b) => a - b);
+    if (!frames.length) return '';
+    const runs = [];
+    for (const f of frames) {
+        const last = runs[runs.length - 1];
+        if (last && f === last[1] + 1) last[1] = f;
+        else runs.push([f, f]);
+    }
+    const text = runs.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(', ');
+    return `${frames.length === 1 ? 'frame' : 'frames'} ${text}`;
+}
+
+// details without the box coordinates (each entry's boxes become a short
+// "frames 4–19" summary) and frame rate, for the details table
 export function withoutBoxes(details) {
     if (!isRecord(details)) return details;
     const copy = { ...details };
@@ -54,7 +69,7 @@ export function withoutBoxes(details) {
             copy[key] = copy[key].map((e) => {
                 if (!isRecord(e)) return e;
                 const { boxes, ...rest } = e;
-                return rest;
+                return Array.isArray(boxes) ? { ...rest, boxes: framesText(boxes) } : rest;
             });
         }
     }
