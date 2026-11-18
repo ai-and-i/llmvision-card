@@ -2,6 +2,7 @@ import { VERSION } from "./version.js";
 import { translate, hexToRgba, escapeHtml, isLocalMedia, eventLabels, getIcon, getLabelIcon, labelCategory, solidColor, hasDetails, renderDetails, normalizeLabelStyles, labelStyle, labelChipCss } from './helpers.js';
 import { boxTracks, withoutBoxes, attachBoxOverlay, boxOverlayCss, keyFrameNumber } from './boxes.js';
 import { feedbackCss, feedbackHtml, attachFeedback, feedbackBadgeHtml } from './feedback.js';
+import { keepCss, keepHtml, attachKeep } from './keep.js';
 export { feedbackBadgeHtml };
 
 // Lifetime of the signed URLs that media_source/resolve_media returns
@@ -36,6 +37,13 @@ function cameraDisplayName(hass, entityId) {
         (e) => e.device_id === deviceId && e.entity_id.startsWith('camera.')
     );
     return cameras.length === 1 ? deviceName : (entity ? friendlyName : '');
+}
+
+// An API event's retention fields, or null from an integration without them
+// (the popup then has no Keep switch)
+function retentionState(item) {
+    if (!item || typeof item.keep !== 'boolean') return null;
+    return { keep: item.keep, reviewed: Boolean(item.reviewed), purgeAfter: item.purge_after || null };
 }
 
 export class BaseLLMVisionCard extends HTMLElement {
@@ -142,6 +150,9 @@ export class BaseLLMVisionCard extends HTMLElement {
                     details: item.details ?? null,
                     // The user's verdict on the analysis, or null
                     feedback: item.feedback ?? null,
+                    // Retention: kept by the user, reviewed (always kept), and
+                    // when retention would otherwise remove the event
+                    retention: retentionState(item),
                     cameraName: cameraFriendlyName,
                     startTime: item.start || null,
                     endTime: item.end || null,
@@ -308,6 +319,8 @@ export class BaseLLMVisionCard extends HTMLElement {
                     d.feedback = feedback;
                     this.feedbackChanged?.(d);
                 },
+                retention: d.retention,
+                onRetention: (retention) => { d.retention = retention; },
                 icon: icon,
                 prefix: 'popup',
                 eventId: d.id
@@ -370,7 +383,7 @@ export class BaseLLMVisionCard extends HTMLElement {
         }).join('');
     }
 
-    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, details, feedback, onFeedback, icon, prefix, eventId }, hassArg) {
+    showPopup({ event, summary, startTime, keyFrame, clip, cameraName, category, label, labels, details, feedback, onFeedback, retention, onRetention, icon, prefix, eventId }, hassArg) {
         const hass = hassArg || this.hass;
         const formattedTime = this.formatDateTimeFull(startTime);
         const secondaryText = cameraName ? `${formattedTime} • ${cameraName}` : formattedTime;
@@ -429,6 +442,7 @@ export class BaseLLMVisionCard extends HTMLElement {
                     </div>
                     ${mediaBlock}
                     <p class="summary" data-part="description">${escapeHtml(summary)}</p>
+                    ${eventId && retention ? keepHtml(prefix, Boolean(clip)) : ''}
                     ${eventId || hasDetails(withoutBoxes(details)) ? `
                     <details class="${prefix}-details">
                         <summary>${escapeHtml(translate('additional_details', this.language) || 'Additional details')}</summary>
@@ -576,6 +590,7 @@ export class BaseLLMVisionCard extends HTMLElement {
     
                     ${boxOverlayCss}
                     ${feedbackCss(prefix)}
+                    ${keepCss(prefix)}
 
                     /* Image or clip, and text */
                     .${contentClass} img, .${contentClass} video {
@@ -810,10 +825,23 @@ export class BaseLLMVisionCard extends HTMLElement {
         document.body.appendChild(wrapper);
         this.lockPageScroll(wrapper);
         if (eventId) {
+            const eventPath = `llmvision/timeline/event/${encodeURIComponent(eventId)}`;
+            const keep = retention ? attachKeep(wrapper, prefix, {
+                state: retention,
+                save: async (value) => retentionState((await hass.callApi('POST', `${eventPath}/keep`, { keep: value }))?.event),
+                formatTime: (iso) => this.formatDateTimeFull(iso),
+                onChange: (state) => onRetention?.(state),
+            }) : null;
             attachFeedback(wrapper, prefix, {
                 feedback,
                 save: async ({ verdict, comment, marks }) => {
-                    const res = await hass.callApi('POST', `llmvision/timeline/event/${encodeURIComponent(eventId)}/feedback`, { verdict, comment, marks });
+                    const res = await hass.callApi('POST', `${eventPath}/feedback`, { verdict, comment, marks });
+                    // Feedback makes the event reviewed, which locks Keep on
+                    if (keep && res?.event) {
+                        const state = retentionState(res.event);
+                        keep.update(state);
+                        onRetention?.(state);
+                    }
                     return res?.event?.feedback ?? null;
                 },
                 formatTime: (iso) => this.formatDateTimeFull(iso),
